@@ -1,0 +1,135 @@
+{
+  "id": "f934e3d3-8456-4161-a7d8-5c02d0a3d552",
+  "number": 2,
+  "approvedAt": "2026-10-29T19:22:54.027Z",
+  "approvedBy": "Demo reviewer",
+  "schemaVersion": "1.0",
+  "spec": {
+    "customer": {
+      "value": "Alder & Pine",
+      "unit": null,
+      "candidateId": "ac20d2c70b3d17889ede2489920c003eca013fffa302ecf7ad4122fdcef273cd",
+      "basis": "manually confirmed"
+    },
+    "jobReference": {
+      "value": "NL-1041",
+      "unit": null,
+      "candidateId": "8ff2feb39b37c2d84cdd4326c38a8dcb17e3d277497126ee03511ed7ab0a8096",
+      "basis": "manually confirmed"
+    },
+    "item": {
+      "value": "Sleeve",
+      "unit": null,
+      "candidateId": "c4b0f04fc863851910249ad23b093a231406b8dd44ecf370f43a64d8338c4ab9",
+      "basis": "manually confirmed"
+    },
+    "width": {
+      "value": 100,
+      "unit": "mm",
+      "candidateId": "b4e84320f48a172df0c36635625703f94c3c14a874b38da46442008bcb794433",
+      "basis": "manually confirmed"
+    },
+    "height": {
+      "value": 50,
+      "unit": "mm",
+      "candidateId": "7853181e5d5ca777b2bf2328fb4753bd1b7c7a7cce3c14dc4803cfc8d4b72cbc",
+      "basis": "manually confirmed"
+    },
+    "depth": {
+      "value": 30,
+      "unit": "mm",
+      "candidateId": "48ab034c086e1069162fa25715fd3395b949a94e8616a044e106fcac0ae7dd1e",
+      "basis": "manually confirmed"
+    },
+    "unit": {
+      "value": "mm",
+      "unit": null,
+      "candidateId": "00892af0d11d035170499a5af1fcb358397b55ccada3e1ef62db4587f2057989",
+      "basis": "manually confirmed"
+    },
+    "material": {
+      "value": "350 gsm board",
+      "unit": null,
+      "candidateId": "5fbd03283461881260eca3afd41bbdf312c102f436caf673aa75b7566492cd95",
+      "basis": "manually confirmed"
+    },
+    "thickness": {
+      "value": 0.4,
+      "unit": "mm",
+      "candidateId": "216609bea2238d7f2a00ea114965456addfa6b7e2bfe119e5df4f205ce9ab461",
+      "basis": "manually confirmed"
+    },
+    "artwork": {
+      "value": "AP_R3.pdf",
+      "unit": null,
+      "candidateId": "745ff37aab7940b83e95c5f1b0e4cd747c9d6726f5718d2e8d967083828b1e31",
+      "basis": "manually confirmed"
+    },
+    "color": {
+      "value": "Blue",
+      "unit": null,
+      "candidateId": "a12566c8a3bae88d9a795047ffc904e114d14268c8d5169c53a05abb5e3cbe75",
+      "basis": "manually confirmed"
+    },
+    "printMethod": {
+      "value": "Offset",
+      "unit": null,
+      "candidateId": "05818174ee4f0b13c64f4e552053c238e5695a453e26cc4340e3a03f90652cf4",
+      "basis": "manually confirmed"
+    },
+    "finish": {
+      "value": "Matte",
+      "unit": null,
+      "candidateId": "979d88235e5739593616f8e519c2fd6e35942c5a1b088b87c65286f49341ed29",
+      "basis": "manually confirmed"
+    },
+    "foil": {
+      "value": "None",
+      "unit": null,
+      "candidateId": "7408e01592cf10c2a8b7828a0898c872c5a8a51c3167dcb488c2efc55aa0bbbc",
+      "basis": "manually confirmed"
+    },
+    "emboss": {
+      "value": "None",
+      "unit": null,
+      "candidateId": "8c52c635b04979e640448ff2bf0ce68dedb4df242b9622adaec8fd0b9e5f017f",
+      "basis": "manually confirmed"
+    },
+    "tolerance": {
+      "value": 0.5,
+      "unit": "mm",
+      "candidateId": "b440bd7621a4907e424b33c9ad67676cce16163896a970359604bc8586f248ef",
+      "basis": "manually confirmed"
+    },
+    "dueDate": {
+      "value": "2027-02-12",
+      "unit": null,
+      "candidateId": "326fa845edc7281e771bb9e66f79a0bce3aece4c918504d1f32b055a676983ba",
+      "basis": "manually confirmed"
+    },
+    "delivery": {
+      "value": "Courier",
+      "unit": null,
+      "candidateId": "4b017f8feb39ebf7639a354291c63d22840cb41f32629f844678eee90e84a407",
+      "basis": "manually confirmed"
+    },
+    "handling": {
+      "value": "Keep dry",
+      "unit": null,
+      "candidateId": "463bfe0bc36b931dc5eb66ce6e916041ad623dd645e87168d0a77eaa402fefe1",
+      "basis": "manually confirmed"
+    },
+    "quantity": {
+      "value": 600,
+      "unit": null,
+      "candidateId": "e6350dee5a50f75801d3ef68146c6ac697a6b767e62fc411b25ab25ae09d1070",
+      "basis": "manually confirmed"
+    }
+  },
+  "sourceIds": [
+    "5925efccd7e200ca0658b614084b76cc6c38d2fd7ab3bae26c5cc52c0af050b5",
+    "bb60bb4d8497488803e8972ddcf729d9bea4c4811e654c79b99aa13d1a584f69",
+    "8bbadf18ab906e43326e1b5165f7b876213e38eb6fe97f6e1fd510f8c7f16986",
+    "a6b2c9e39de2869d661769533223f299fbdbf96b75f9d09041b7aed4b1975946"
+  ]
+}

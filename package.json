@@ -1,0 +1,1 @@
+{"name":"northline-review","private":true,"type":"module","scripts":{"start":"node --experimental-strip-types server.ts","test":"node --experimental-strip-types --test test.ts"},"engines":{"node":">=24"}}
