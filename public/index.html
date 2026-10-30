@@ -34,7 +34,7 @@
   <div class="stage">
     <header class="masthead">
       <div class="breadcrumb"><span class="breadcrumb-symbol">N<span>.</span></span><span>OPERATIONS</span><span class="crumb-divider">/</span><strong>SPECIFICATION INTELLIGENCE</strong></div>
-      <div class="mast-actions"><span class="env-indicator"><i aria-hidden="true"></i> LOCAL / NOT CONNECTED</span><label for="role">REVIEW ROLE</label><select id="role"><option value="coordinator">Coordinator</option><option value="reviewer">Authorized demo reviewer</option></select></div>
+      <div class="mast-actions"><span class="env-indicator"><i aria-hidden="true"></i> LOCAL / NOT CONNECTED</span><span class="access-status" id="access-status" role="status">ACCESS LOCKED</span><button id="access-switch" class="access-switch" type="button">Enter local key ↗</button></div>
     </header>
     <div id="error" role="alert" aria-live="assertive"></div>
     <main id="content" tabindex="-1"><div class="loading"><span class="spinner" aria-hidden="true"></span> Opening case library…</div></main>
@@ -49,6 +49,17 @@
     <label>Job title<input name="name" required maxlength="120" placeholder="e.g. Botanical collection sleeves"></label>
     <label>Product family<select name="type"><option>Sleeve</option><option>Label</option><option>Carton</option></select></label>
     <button class="primary dialog-submit" type="submit">Create work order <span aria-hidden="true">↗</span></button>
+  </form>
+</dialog>
+<dialog id="access-dialog" aria-labelledby="access-dialog-title">
+  <form id="access-form" class="dialog-form">
+    <span class="eyebrow">LOCAL OPERATOR ACCESS / 01</span>
+    <h2 id="access-dialog-title">A key to the <em>atelier.</em></h2>
+    <p>Enter a local coordinator or reviewer access key printed in the server terminal. The server determines the role; this is not individual user authentication.</p>
+    <label>Local access key<input id="access-key" name="key" type="password" autocomplete="off" spellcheck="false" required minlength="32" placeholder="Paste the key from npm start"></label>
+    <div id="access-error" role="alert" aria-live="assertive"></div>
+    <button class="primary dialog-submit" type="submit">Open the case library <span aria-hidden="true">↗</span></button>
+    <p class="access-disclaimer">Keys are held in this tab's memory only. Refreshing the page requires entering the key again. Synthetic local demo; never expose this service publicly.</p>
   </form>
 </dialog>
 <div id="toast" role="status" aria-live="polite"></div>
