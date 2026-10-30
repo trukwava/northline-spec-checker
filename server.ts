@@ -25,7 +25,12 @@ let body='';for await(const chunk of req){body+=chunk;if(body.length>2_000_000)t
 if(req.method==='GET'&&url.pathname==='/api/jobs'){res.end(JSON.stringify((db.prepare('SELECT body FROM jobs WHERE org=?').all(org) as any[]).map(r=>state(JSON.parse(r.body)))));return;}
 if(req.method==='POST'&&url.pathname==='/api/reset'){if(actor.role!=='reviewer')throw Object.assign(new Error('Only the local reviewer key may reset the demonstration'),{status:403,code:'FORBIDDEN'});db.prepare('DELETE FROM jobs WHERE org=?').run(org);seed();audit('demo reset by '+actor.label,'all');res.end('{}');return;}
 if(req.method==='POST'&&url.pathname==='/api/jobs'){if(!['Sleeve','Label','Carton'].includes(p.type)||!p.name?.trim())throw Error('Enter a name and valid product type');const j={id:'NL-'+crypto.randomUUID().slice(0,8),name:String(p.name).slice(0,120),type:p.type,schemaVersion:'1.0',messages:[],candidates:[],resolutions:{},revisions:[]};save(j);audit('created by '+actor.label,j.id);res.end(JSON.stringify(state(j)));return;}
-const id=url.pathname.split('/')[3];const j=get(id);if(req.method==='POST'){const action=url.pathname.split('/')[4];
+const id=url.pathname.split('/')[3];const j=get(id);
+if(req.method==='GET'&&url.pathname===`/api/jobs/${id}/audit`){
+const rows=db.prepare('SELECT id,at,action FROM audit WHERE job=? ORDER BY id DESC LIMIT 100').all(id);
+res.end(JSON.stringify({job:id,events:rows,limit:100,note:'Local capability labels are not verified personal identities'}));return;
+}
+if(req.method==='POST'){const action=url.pathname.split('/')[4];
 if(!Number.isSafeInteger(p.expectedVersion)||p.expectedVersion<1)throw Object.assign(new Error('An expected case version is required for changes. Refresh and retry.'),{status:428,code:'VERSION_REQUIRED'});
 if(p.expectedVersion!==j.version)throw stale(j.version);
 const before=JSON.stringify(j);const events:string[]=[];if(action==='import'){if(typeof p.text!=='string'||!p.text.trim())throw Error('Paste source text first');for(const part of p.text.split(/\n(?=From:)/)){if(add(j,part,p.kind,p.name))events.push('source imported');}}
