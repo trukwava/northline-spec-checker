@@ -48,6 +48,3 @@ Security boundary: loopback-only synthetic demo. The role selector is a simulati
 
 Retention: source text, review decisions, snapshots and event metadata remain locally until demo reset or database removal. PDF temporary files are deleted after extraction. Reset removes demo jobs; audit event metadata remains. There is no automatic expiry, compliance certification, encryption-at-rest feature, or remote backup. Domain snapshots are immutable through the app API; an administrator editing the database can change them.
 
-## Reference
-
-Original implementation inspired by the user-supplied description of https://lookbook.pursuit.org/projects/utley-ai-engine. The reference could not be retrieved during the build. No performance/adoption claims, branding, code, private documents or customer relationships were reused. All organizations, messages and files here are synthetic.
