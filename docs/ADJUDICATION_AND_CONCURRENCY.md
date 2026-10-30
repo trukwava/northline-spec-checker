@@ -29,8 +29,14 @@ Previously saved database JSON objects lacking a version or candidate-review map
 
 ## Critical limits
 
-**This is not production authorization.** `role: reviewer` remains a client-selected demo role. A browser visitor can claim that role. Do not expose the server on the internet or use it to release real manufacturing work orders.
+**This is not production identity authentication.** The browser no longer selects a trusted role. The loopback server generates distinct, random coordinator/reviewer capability keys at startup (or reads optional keys from environment variables) and verifies the `Authorization: Bearer` header on API requests. It derives approval authority from that key, ignoring role spoofing in request bodies. However, keys are shared operator capabilities, not unique users: there is no personal authentication, revocation workflow, or verified audit identity. Do not expose the server on the internet or use it to release real manufacturing work orders.
 
 Before production: identity and organization-scoped authorization derived from authenticated server sessions; durable actor attribution; CSRF and authenticated session controls; version-aware authentication for all writes; full audit integrity; more robust domain feasibility rules; controlled data retention, backup and recovery; and a formal migration plan for multi-organization data.
 
 No external messages are sent; all examples and approvals are synthetic.
+
+## Local capability gate
+
+`GET /api/health` is public on loopback for readiness checks; all other `/api` routes require a valid server-issued local key. Missing/invalid keys return HTTP 401 `ACCESS_REQUIRED`. The coordinator key can create/edit work orders and adjudicate evidence but cannot approve revisions or reset the demo; those operations require the reviewer key and return HTTP 403 `FORBIDDEN` otherwise. Browser keys are memory-only and not stored in local storage. Keys generated at startup are printed to the operator terminal, not embedded in frontend assets. The CI harness generates random keys and passes them through its runtime environment without checking secrets into the repository.
+
+Use separate named-user identities and organization membership checks before connecting any non-synthetic data. Treat this gate as a local capability demonstration, not a compliance or production security guarantee.
