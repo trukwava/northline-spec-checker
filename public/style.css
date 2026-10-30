@@ -46,3 +46,9 @@ dialog{max-width:min(92vw,515px);width:100%;border:1px solid #b8a8e6;border-radi
 .rejection-note strong{display:block;color:#954c44;font:9px/1.6 ui-monospace,monospace;letter-spacing:.08em}
 .rejection-note p{font-size:12px;color:#5a4544;margin:6px 0;overflow-wrap:anywhere}
 .rejection-note span{font:10px/1.6 ui-monospace,monospace;color:#8d7171}
+
+.candidate-history{border-top:1px solid #e3d5cb;margin-top:12px;padding-top:9px;color:#75595a;font-size:11px}
+.candidate-history summary{cursor:pointer;font-weight:800;letter-spacing:.01em}
+.candidate-history ol{margin:10px 0 0;padding-left:19px;display:grid;gap:6px}
+.candidate-history li{font-size:11px;line-height:1.5;color:#6b5661;overflow-wrap:anywhere}
+.candidate-history li strong{color:#6a3b42}
