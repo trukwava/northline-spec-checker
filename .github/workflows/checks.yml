@@ -16,11 +16,13 @@ jobs:
         run: npm test
       - name: Start demo and exercise API
         run: |
+          export NORTHLINE_COORDINATOR_KEY="$(openssl rand -hex 32)"
+          export NORTHLINE_REVIEWER_KEY="$(openssl rand -hex 32)"
           npm start > /tmp/northline.log 2>&1 &
           SERVER_PID=$!
           trap 'kill "$SERVER_PID"' EXIT
           for attempt in $(seq 1 30); do
-            if curl --fail --silent http://127.0.0.1:4317/api/jobs > /dev/null; then break; fi
+            if curl --fail --silent http://127.0.0.1:4317/api/health > /dev/null; then break; fi
             sleep 1
           done
           node --experimental-strip-types integration.ts
