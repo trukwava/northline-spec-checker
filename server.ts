@@ -23,8 +23,8 @@ if(!actor)throw Object.assign(new Error('Local access key required or invalid. E
 if(req.method==='GET'&&url.pathname==='/api/session'){res.end(JSON.stringify({role:actor.role,org:actor.org,label:actor.label,mode:'local-key-demo',productionReady:false}));return;}
 let body='';for await(const chunk of req){body+=chunk;if(body.length>2_000_000)throw Error('Input exceeds 2 MB limit');}const p=body?JSON.parse(body):{};
 if(req.method==='GET'&&url.pathname==='/api/jobs'){res.end(JSON.stringify((db.prepare('SELECT body FROM jobs WHERE org=?').all(org) as any[]).map(r=>state(JSON.parse(r.body)))));return;}
-if(req.method==='POST'&&url.pathname==='/api/reset'){if(actor.role!=='reviewer')throw Object.assign(new Error('Only the local reviewer key may reset the demonstration'),{status:403,code:'FORBIDDEN'});db.prepare('DELETE FROM jobs WHERE org=?').run(org);seed();audit('demo reset','all');res.end('{}');return;}
-if(req.method==='POST'&&url.pathname==='/api/jobs'){if(!['Sleeve','Label','Carton'].includes(p.type)||!p.name?.trim())throw Error('Enter a name and valid product type');const j={id:'NL-'+crypto.randomUUID().slice(0,8),name:String(p.name).slice(0,120),type:p.type,schemaVersion:'1.0',messages:[],candidates:[],resolutions:{},revisions:[]};save(j);audit('created',j.id);res.end(JSON.stringify(state(j)));return;}
+if(req.method==='POST'&&url.pathname==='/api/reset'){if(actor.role!=='reviewer')throw Object.assign(new Error('Only the local reviewer key may reset the demonstration'),{status:403,code:'FORBIDDEN'});db.prepare('DELETE FROM jobs WHERE org=?').run(org);seed();audit('demo reset by '+actor.label,'all');res.end('{}');return;}
+if(req.method==='POST'&&url.pathname==='/api/jobs'){if(!['Sleeve','Label','Carton'].includes(p.type)||!p.name?.trim())throw Error('Enter a name and valid product type');const j={id:'NL-'+crypto.randomUUID().slice(0,8),name:String(p.name).slice(0,120),type:p.type,schemaVersion:'1.0',messages:[],candidates:[],resolutions:{},revisions:[]};save(j);audit('created by '+actor.label,j.id);res.end(JSON.stringify(state(j)));return;}
 const id=url.pathname.split('/')[3];const j=get(id);if(req.method==='POST'){const action=url.pathname.split('/')[4];
 if(!Number.isSafeInteger(p.expectedVersion)||p.expectedVersion<1)throw Object.assign(new Error('An expected case version is required for changes. Refresh and retry.'),{status:428,code:'VERSION_REQUIRED'});
 if(p.expectedVersion!==j.version)throw stale(j.version);
@@ -39,12 +39,12 @@ if(p.decision==='reject'){
 if(typeof p.reason!=='string'||p.reason.trim().length<3||p.reason.length>300)throw Error('Provide a rejection reason between 3 and 300 characters');
 const reason=p.reason.trim();
 if(!j.candidateReviews[c.id]||j.candidateReviews[c.id].reason!==reason){
-const at=new Date().toISOString();j.candidateReviews[c.id]={status:'rejected',reason,at,by:'Demo reviewer'};j.candidateReviewEvents.push({candidateId:c.id,field:c.field,decision:'reject',reason,at,by:'Demo reviewer'});
+const at=new Date().toISOString();j.candidateReviews[c.id]={status:'rejected',reason,at,by:actor.label};j.candidateReviewEvents.push({candidateId:c.id,field:c.field,decision:'reject',reason,at,by:actor.label});
 if(j.resolutions[c.field]?.candidateId===c.id)delete j.resolutions[c.field];
 events.push('candidate rejected: '+c.field);
 }
 }else if(p.decision==='restore'){
-if(j.candidateReviews[c.id]){delete j.candidateReviews[c.id];j.candidateReviewEvents.push({candidateId:c.id,field:c.field,decision:'restore',at:new Date().toISOString(),by:'Demo reviewer'});events.push('candidate restored: '+c.field);}
+if(j.candidateReviews[c.id]){delete j.candidateReviews[c.id];j.candidateReviewEvents.push({candidateId:c.id,field:c.field,decision:'restore',at:new Date().toISOString(),by:actor.label});events.push('candidate restored: '+c.field);}
 }else throw Error('Unknown candidate review decision');
 }
 else if(action==='approve'){
@@ -54,7 +54,7 @@ if(!previous||!isDeepStrictEqual(previous.spec,j.resolutions)||!isDeepStrictEqua
 j.revisions.push(approve(j,actor.role));events.push('approved revision '+j.revisions.length);
 }
 }else throw Error('Unknown action');
-if(JSON.stringify(j)!==before){commit(j,p.expectedVersion);for(const actionName of events)audit(actionName,id);}
+if(JSON.stringify(j)!==before){commit(j,p.expectedVersion);for(const actionName of events)audit(actor.label+': '+actionName,id);}
 }res.end(JSON.stringify(state(j)));return;}
 const target=path.join(root,'public',url.pathname==='/'?'index.html':url.pathname);if(!target.startsWith(path.join(root,'public')+path.sep))throw Error('Invalid path');res.setHeader('Content-Type',target.endsWith('.js')?'text/javascript':target.endsWith('.css')?'text/css':'text/html');res.end(fs.readFileSync(target));}catch(e:any){res.statusCode=e.status||400;res.setHeader('Content-Type','application/json');res.end(JSON.stringify({error:e.message,code:e.code||'BAD_REQUEST',...(e.currentVersion?{currentVersion:e.currentVersion}:{})}));}});server.listen(4317,'127.0.0.1',()=>{
 console.log('Northline: http://127.0.0.1:4317 (synthetic loopback demo)');
