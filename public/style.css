@@ -30,3 +30,19 @@ dialog{max-width:min(92vw,515px);width:100%;border:1px solid #b8a8e6;border-radi
 @media(max-width:720px){.app-shell{display:block}.rail{position:static;height:auto;min-height:0;padding:15px 15px 10px}.brand{padding:2px 4px 13px}.rail-kicker,.rail-section-heading,.rail-foot{display:none}.search-wrap{display:flex;margin:0 0 10px}.new-case{margin:12px 0 9px;width:auto;font-size:11px;padding:8px 11px}.new-icon{font-size:19px}.rail #jobs{display:flex;gap:6px;overflow-x:auto;padding-bottom:7px;scrollbar-width:thin}.job-card{min-width:183px;width:183px;padding:10px;gap:5px}.job-card-top{font-size:9px}.job-card-title{font-size:12px}.rail .job-status{font-size:9px}.masthead{padding:12px 17px;height:auto;min-height:60px;align-items:start}.mast-actions{margin-left:auto}.breadcrumb{font-size:9px;letter-spacing:.03em}.breadcrumb>span:nth-child(2),.crumb-divider{display:none}.mast-actions select{max-width:126px;white-space:normal;font-size:10px}.breadcrumb-symbol{font-size:25px}.page-footer{flex-direction:column}.hero-copy{padding:25px}.hero-copy h1{font-size:44px}.hero-desc{font-size:12px}.metric-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.metric-label{font-size:9px}.metric-value{font-size:30px}.section-heading{align-items:start;flex-direction:column}.section-heading h2{font-size:30px}.tabbar{margin-top:16px}.tabbar button{font-size:11px;padding:11px 10px}.release-card{grid-template-columns:1fr}.release-number{display:none}}
 @media(max-width:430px){.brand-mark{font-size:43px;min-width:40px}.brand-wordmark strong{font-size:13px}.brand-wordmark small{font-size:7px}.hero-copy h1{font-size:37px}.hero-topline{margin-bottom:20px}.metric{padding:13px}.metric-value{font-size:27px}.metric-caption{font-size:10px}.feature-panel{padding:21px}.decision-heading{font-size:32px}.source-header{padding:16px;flex-direction:column}.masthead{gap:8px}.breadcrumb strong{font-size:8px}.mast-actions select{max-width:112px}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+
+/* Review adjudication — evidence remains visible even when excluded. */
+.candidate-card.rejected-claim{border-left-color:#b16857;background:#f9f3f1}
+.rejected-claim .candidate-value{text-decoration:line-through;text-decoration-color:#b1685799;text-decoration-thickness:1px;color:#716369}
+.candidate-actions{display:flex;align-items:start;gap:12px;flex-wrap:wrap;margin-top:12px}
+.candidate-review{flex:1 1 180px;max-width:360px;color:#75545b;font-size:11px}
+.candidate-review summary{cursor:pointer;font-size:11px;line-height:1.6;font-weight:800;list-style-position:inside}
+.candidate-reject-form{display:grid;gap:9px;margin-top:10px;padding:12px;background:#fff7f4;border:1px solid #e8c9c0;border-radius:4px}
+.candidate-reject-form label{display:grid;gap:5px;color:#734b46;font-size:11px;font-weight:700}
+.candidate-reject-form input{min-width:0;width:100%;font:12px/1.5 inherit;padding:9px 10px;border:1px solid #cdaea8;background:white;border-radius:3px}
+.restore-button{padding:7px 11px;background:#fff9f6;border:1px solid #d8b1a9;border-radius:3px;color:#854b40;font-size:11px;font-weight:800;cursor:pointer}
+.restore-button:hover{background:#fcece6}
+.rejection-note{border:1px solid #e2c6bf;background:#fff9f6;margin:11px 0;padding:12px 13px}
+.rejection-note strong{display:block;color:#954c44;font:9px/1.6 ui-monospace,monospace;letter-spacing:.08em}
+.rejection-note p{font-size:12px;color:#5a4544;margin:6px 0;overflow-wrap:anywhere}
+.rejection-note span{font:10px/1.6 ui-monospace,monospace;color:#8d7171}
