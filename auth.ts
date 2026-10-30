@@ -6,7 +6,7 @@ type LocalKeys={coordinator:string,reviewer:string};
 
 function keyFromEnvironment(value:string|undefined,name:string){
   if(value!==undefined){
-    if(value.length<32||value.length>256)throw Error(name+' must be 32–256 characters');
+    if(value.length<32||value.length>256||!/^[\x21-\x7e]+$/.test(value))throw Error(name+' must be 32–256 printable ASCII characters without spaces');
     return {key:value,generated:false};
   }
   return {key:randomBytes(32).toString('hex'),generated:true};
@@ -24,7 +24,7 @@ const equal=(a:string,b:string)=>{
 export function authenticateLocal(authorization:string|string[]|undefined,keys:LocalKeys):LocalActor|null{
   if(typeof authorization!=='string'||!authorization.startsWith('Bearer '))return null;
   const provided=authorization.slice(7);
-  if(provided.length<32||provided.length>256)return null;
+  if(provided.length<32||provided.length>256||!/^[\x21-\x7e]+$/.test(provided))return null;
   if(equal(provided,keys.reviewer))return {role:'reviewer',org:'northline-demo',label:'Local reviewer key'};
   if(equal(provided,keys.coordinator))return {role:'coordinator',org:'northline-demo',label:'Local coordinator key'};
   return null;
