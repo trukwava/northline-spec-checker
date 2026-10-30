@@ -24,7 +24,8 @@ No environment variables are required. To provide your own access keys, set `NOR
 6. Once blockers are resolved, unlock the application using the reviewer access key printed in the terminal; approve explicitly from the ledger. The server verifies the key and rejects forged `role` values in request bodies. This records synthetic approval under a shared local capability, not a verified human identity.
 7. Approved revisions offers JSON, CSV, and an HTML production sheet you can print or save as PDF through the browser.
 8. Import a different quantity after approval. The draft reopens and the previous release stays unchanged. Confirm and approve a new revision to adopt the change.
-9. Open the Contrast Room to inspect active disagreements, rejected evidence and changes against the last approved revision. In another browser session, an outdated decision is blocked with a stale-case warning rather than overwriting newer review work.
+9. Open the Contrast Room to inspect active disagreements, rejected evidence and changes against the last approved revision.
+10. Open **Activity ledger** for the most recent 100 local actions on this case. Every action is labeled by coordinator/reviewer capability rather than by a verified person; this is not a tamper-evident or compliance-certified audit trail. In another browser session, an outdated decision is blocked with a stale-case warning rather than overwriting newer review work.
 
 Three complete, two missing-detail, two conflicting and one late-change fixture are created on reset, with over twenty source messages and two PDF evidence records. One additional job may be approved from the browser verification. Reset returns the original distribution.
 
@@ -57,3 +58,7 @@ All existing-job API writes require an integer `expectedVersion` obtained from t
 ## Local access design
 
 All `/api` reads and changes (except anonymous `/api/health`) require a bearer key recognized by the loopback server. The server derives `coordinator`/`reviewer` authority from the key and ignores the untrusted client-provided role for approval. The public interface never embeds a key or supplies default production credentials. A local server restart invalidates randomly generated keys. The terminal is the only bootstrap location for such keys. The browser retains the entered key only in tab memory; a refresh prompts for it again. This is a deliberate transitional demo control, **not** production authentication: local operators sharing a key are indistinguishable, no audit actor identity is verified, and there is no password management, SSO, MFA, tenant membership, or credential revocation within a running session. Do not bind this app to a public network interface or use real customer documents.
+
+## Access validation and activity ledger
+
+Configured local keys must contain 32–256 printable ASCII characters without spaces. Keep them outside the repository. A new per-case **Activity ledger** reads up to 100 recent event metadata entries through an authenticated API route. This improves operator visibility but does not make the audit database tamper-proof or identify individual humans. This ledger is intentionally distinct from the immutable approved production snapshots and the per-candidate adjudication history.
