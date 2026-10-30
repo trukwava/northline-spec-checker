@@ -49,3 +49,12 @@ test('development access keys are random and per-server-start, not bundled fixed
  assert.notEqual(a.keys.reviewer,b.keys.reviewer);
  assert.notEqual(a.keys.coordinator,a.keys.reviewer);
 });
+
+test('local capability keys reject whitespace, line breaks and non-ASCII configuration',()=>{
+ for(const bad of [' '.repeat(64),'a'.repeat(63)+' ','a'.repeat(31)+'\n'+'b'.repeat(32),'é'.repeat(40)]){
+   assert.throws(()=>createLocalAccessKeys({NORTHLINE_COORDINATOR_KEY:bad}),/printable ASCII/);
+ }
+ const keys=createLocalAccessKeys({NORTHLINE_COORDINATOR_KEY:'c'.repeat(64),NORTHLINE_REVIEWER_KEY:'r'.repeat(64)}).keys;
+ assert.equal(authenticateLocal('Bearer '+'r'.repeat(64)+' ',keys),null);
+ assert.equal(authenticateLocal('Bearer '+'c'.repeat(63)+'\n',keys),null);
+});
