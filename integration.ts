@@ -41,6 +41,8 @@ assert.equal(result.body.status,'Change review');
 assert.equal(result.body.resolutions.quantity,undefined);
 assert.equal(result.body.candidateReviews[firstQuantity.id].status,'rejected');
 assert.equal(result.body.candidateReviews[firstQuantity.id].reason,'Superseded by customer follow-up');
+assert.equal(result.body.candidateReviewEvents.length,1);
+assert.equal(result.body.candidateReviewEvents[0].reason,'Superseded by customer follow-up');
 assert.equal(JSON.stringify(result.body.revisions[0]),approved);
 const rejectedVersion=result.body.version;
 
@@ -60,6 +62,9 @@ assert.equal((await ref(id)).version,rejectedVersion);
 result=await mutate(id,'review-candidate',rejectedVersion,{candidateId:firstQuantity.id,decision:'restore'});
 assert.equal(result.status,200);
 assert(!result.body.candidateReviews[firstQuantity.id]);
+assert.equal(result.body.candidateReviewEvents.length,2);
+assert.deepEqual(result.body.candidateReviewEvents.map((event:any)=>event.decision),['reject','restore']);
+assert.equal(result.body.candidateReviewEvents[0].reason,'Superseded by customer follow-up');
 assert.equal(result.body.version,rejectedVersion+1);
 result=await mutate(id,'resolve',result.body.version,{field:'quantity',candidateId:firstQuantity.id});
 assert.equal(result.status,200);
