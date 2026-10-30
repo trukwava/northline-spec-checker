@@ -128,6 +128,12 @@ fs.writeFileSync('samples/expected-approved.json',JSON.stringify(result.body.rev
 result=await mutate(id,'approve',incomingVersion,{role:'reviewer'});
 assert.equal(result.status,409);
 assert.equal((await ref(id)).revisions.length,2);
+const auditAsCoordinator=await call('/jobs/'+id+'/audit',undefined,coordinatorKey);
+assert.equal(auditAsCoordinator.status,200);
+assert.equal(auditAsCoordinator.body.job,id);
+assert(auditAsCoordinator.body.events.some((event:any)=>event.action.includes('Local coordinator key: candidate rejected')));
+assert.equal((await call('/jobs/'+id+'/audit',undefined,'')).status,401);
+assert.equal((await call('/jobs/not-a-job/audit')).status,400);
 
 // PDF evidence still imports and shows blue/red source conflict.
 j=await ref('NL-1046');
