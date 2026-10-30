@@ -47,14 +47,16 @@ const approved=JSON.stringify(result.body.revisions[0]);
 const initialVersion=result.body.version;
 
 // Rejecting an already-approved candidate reopens its field; the release stays immutable.
-result=await mutate(id,'review-candidate',initialVersion,{candidateId:firstQuantity.id,decision:'reject',reason:'Superseded by customer follow-up'});
+result=await mutate(id,'review-candidate',initialVersion,{candidateId:firstQuantity.id,decision:'reject',reason:'Superseded by customer follow-up'},coordinatorKey);
 assert.equal(result.status,200);
 assert.equal(result.body.status,'Change review');
 assert.equal(result.body.resolutions.quantity,undefined);
 assert.equal(result.body.candidateReviews[firstQuantity.id].status,'rejected');
 assert.equal(result.body.candidateReviews[firstQuantity.id].reason,'Superseded by customer follow-up');
+assert.equal(result.body.candidateReviews[firstQuantity.id].by,'Local coordinator key');
 assert.equal(result.body.candidateReviewEvents.length,1);
 assert.equal(result.body.candidateReviewEvents[0].reason,'Superseded by customer follow-up');
+assert.equal(result.body.candidateReviewEvents[0].by,'Local coordinator key');
 assert.equal(JSON.stringify(result.body.revisions[0]),approved);
 const rejectedVersion=result.body.version;
 
