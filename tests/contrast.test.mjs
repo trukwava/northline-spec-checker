@@ -44,3 +44,23 @@ test('new sources without changed values still appear after sign-off',()=>{
 test('untrusted source names and values are escaped',()=>{
   assert.equal(safe('<img onerror="x">'),'&lt;img onerror=&quot;x&quot;&gt;');
 });
+test('a rejected assertion stays in the evidence record but is excluded from active contrast',()=>{
+  const j=base();j.candidates[3].id='claim-600';
+  j.candidateReviews={'claim-600':{status:'rejected',reason:'Superseded customer proof'}};
+  const comparison=compareJob(j);
+  assert.equal(comparison.contested.length,0);
+  assert.equal(comparison.excluded.length,1);
+  assert.equal(comparison.excluded[0].sourceName,'Change');
+  assert.equal(comparison.excluded[0].review.reason,'Superseded customer proof');
+});
+test('post-approval rejection is an explicit release delta even if specification values did not change',()=>{
+  const j=base();j.candidates[3].id='claim-600';
+  j.candidateReviews={'claim-600':{status:'rejected',reason:'Superseded customer proof'}};
+  j.resolutions={quantity:{value:500}};
+  j.revisions=[{spec:{quantity:{value:500}},sourceIds:['m1','m2'],candidateReviewSnapshot:{}}];
+  const comparison=compareJob(j);
+  assert.equal(comparison.changes.length,0);
+  assert.equal(comparison.reviewChanges.length,1);
+  assert.equal(comparison.reviewChanges[0].after.reason,'Superseded customer proof');
+  assert.equal(comparison.newSources.length,0);
+});
