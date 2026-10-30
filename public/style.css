@@ -67,3 +67,14 @@ dialog{max-width:min(92vw,515px);width:100%;border:1px solid #b8a8e6;border-radi
 #access-error:not(:empty){padding:10px 12px;background:#fff0e7;color:#8d3939;font-size:12px;border-left:3px solid #cc776f}
 .access-disclaimer{margin-top:22px!important;font:11px/1.7 ui-monospace,monospace!important;color:#867b8a!important}
 @media(max-width:720px){.mast-actions{gap:6px}.access-status{font-size:8px;padding:6px}.access-switch{font-size:9px;padding:6px;white-space:normal}#access-dialog .dialog-form{padding:25px}#access-dialog .dialog-form h2{font-size:40px}}
+
+/* Audit timeline: factual, traceable local operations; no implied compliance seal. */
+.activity-journal{list-style:none;margin:20px 0 25px;padding:0;border:1px solid #dbd3d5;background:#fffdf9;border-radius:5px;overflow:hidden}
+.activity-journal li{display:grid;grid-template-columns:80px 1fr;gap:15px;padding:18px 21px;border-bottom:1px solid #e9e1de}
+.activity-journal li:last-child{border:0}
+.activity-journal li:nth-child(odd){background:#faf6f4}
+.activity-journal-index{font:11px/1.7 ui-monospace,monospace;color:#7d65bd}
+.activity-journal li div{display:grid;gap:6px;min-width:0}
+.activity-journal strong{font-size:13px;font-weight:750;overflow-wrap:anywhere;color:#33263d}
+.activity-journal li div span{font:10px/1.6 ui-monospace,monospace;color:#8a7b8b}
+@media(max-width:520px){.activity-journal li{grid-template-columns:55px minmax(0,1fr);padding:15px 12px;gap:9px}}
