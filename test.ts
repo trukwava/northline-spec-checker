@@ -8,3 +8,22 @@ test('unauthorized release fails',()=>assert.throws(()=>approve(job(),'coordinat
 test('approved snapshots are immutable after late change',()=>{const j=job();const r=approve(j,'reviewer');j.revisions.push(r);j.resolutions.quantity.value=600;j.messages.push({id:'late'});assert.equal(r.spec.quantity.value,500);assert.deepEqual(r.sourceIds,['a']);assert.equal(approve(j,'reviewer').number,2)});
 test('idempotent source keys and competing candidates',()=>{assert.equal(hash('same'),hash('same'));const j=job();delete j.resolutions.quantity;j.candidates=extract('quantity: 500\nquantity: 600','x');assert(issues(j).some(i=>i.message.includes('Competing')))});
 test('impossible date fails',()=>{const j=job();j.resolutions.dueDate.value='2099-02-31';assert(issues(j).some(i=>i.field==='dueDate'))});
+
+test('rejected assertions are excluded from source conflicts but missing required decisions still block',()=>{
+ const j=job();delete j.resolutions.quantity;
+ j.candidates=extract('quantity: 500\nquantity: 600','review-source');
+ j.candidateReviews={[j.candidates[0].id]:{status:'rejected',reason:'Superseded',by:'Demo reviewer'}};
+ const findings=issues(j);
+ assert(findings.some(i=>i.field==='quantity'&&i.message.includes('Required')));
+ assert(!findings.some(i=>i.field==='quantity'&&i.message.includes('Competing')));
+ j.resolutions.quantity={value:500,candidateId:j.candidates[0].id};
+ assert(issues(j).some(i=>i.message.includes('has been rejected')));
+ assert.throws(()=>approve(j,'reviewer'));
+});
+test('rejected source review is captured in approved snapshot and not shared with later draft',()=>{
+ const j=job();j.candidateReviews={excluded:{status:'rejected',reason:'Superseded',by:'Demo reviewer'}};
+ const release=approve(j,'reviewer');
+ assert.equal(release.candidateReviewSnapshot.excluded.reason,'Superseded');
+ delete j.candidateReviews.excluded;
+ assert.equal(release.candidateReviewSnapshot.excluded.reason,'Superseded');
+});
