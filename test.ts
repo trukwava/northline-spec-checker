@@ -1,4 +1,4 @@
-import {test} from 'node:test';import assert from 'node:assert/strict';import {extract,issues,approve,hash} from './domain.ts';
+import {test} from 'node:test';import assert from 'node:assert/strict';import {extract,issues,approve,hash} from './domain.ts';import {createLocalAccessKeys,authenticateLocal} from './auth.ts';
 test('questions and quoted quantities do not become instructions',()=>{const c=extract('quantity: 500\n> quantity: 300\nquantity: Would 750 be cheaper?\nquantity: 600','source');assert.deepEqual(c.filter(c=>c.kind==='assertion').map(c=>c.value),[500,600]);assert.equal(c[1].kind,'quoted history');assert.equal(c[2].kind,'question');});
 test('normalizes units while retaining original input',()=>{const c=extract('width: 2 in\nheight: 5 cm\ndepth: 100','a');assert.equal(c[0].value,50.8);assert.equal(c[0].raw,'2 in');assert.equal(c[1].value,50);assert.equal(c[2].unit,null)});
 test('quoted history marker applies to subsequent lines',()=>{assert.equal(extract('On Monday wrote:\nquantity: 300','a')[0].kind,'quoted history')});
@@ -26,4 +26,26 @@ test('rejected source review is captured in approved snapshot and not shared wit
  assert.equal(release.candidateReviewSnapshot.excluded.reason,'Superseded');
  delete j.candidateReviews.excluded;
  assert.equal(release.candidateReviewSnapshot.excluded.reason,'Superseded');
+});
+
+test('local operator capabilities are derived on server and cannot be spoofed by request content',()=>{
+ const env={NORTHLINE_COORDINATOR_KEY:'c'.repeat(64),NORTHLINE_REVIEWER_KEY:'r'.repeat(64)};
+ const {keys,generated}=createLocalAccessKeys(env);
+ assert.equal(generated.coordinator,false);
+ assert.equal(generated.reviewer,false);
+ assert.equal(authenticateLocal('Bearer '+keys.reviewer,keys)?.role,'reviewer');
+ assert.equal(authenticateLocal('Bearer '+keys.coordinator,keys)?.role,'coordinator');
+ assert.equal(authenticateLocal('Bearer '+keys.coordinator+'wrong',keys),null);
+ assert.equal(authenticateLocal('Basic '+keys.reviewer,keys),null);
+ assert.equal(authenticateLocal(undefined,keys),null);
+ assert.throws(()=>createLocalAccessKeys({NORTHLINE_COORDINATOR_KEY:'short'}),/32/);
+ assert.throws(()=>createLocalAccessKeys({NORTHLINE_COORDINATOR_KEY:'x'.repeat(64),NORTHLINE_REVIEWER_KEY:'x'.repeat(64)}),/must differ/);
+});
+test('development access keys are random and per-server-start, not bundled fixed credentials',()=>{
+ const a=createLocalAccessKeys({});
+ const b=createLocalAccessKeys({});
+ assert.equal(a.generated.coordinator,true);
+ assert.equal(a.generated.reviewer,true);
+ assert.notEqual(a.keys.reviewer,b.keys.reviewer);
+ assert.notEqual(a.keys.coordinator,a.keys.reviewer);
 });
