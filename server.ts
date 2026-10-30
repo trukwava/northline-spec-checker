@@ -1,4 +1,4 @@
-import http from 'node:http';import os from 'node:os';import {execFileSync} from 'node:child_process';import fs from 'node:fs';import path from 'node:path';import {DatabaseSync} from 'node:sqlite';import {fields,required,hash,extract,issues,approve} from './domain.ts';
+import http from 'node:http';import {isDeepStrictEqual} from 'node:util';import os from 'node:os';import {execFileSync} from 'node:child_process';import fs from 'node:fs';import path from 'node:path';import {DatabaseSync} from 'node:sqlite';import {fields,required,hash,extract,issues,approve} from './domain.ts';
 const root=path.dirname(new URL(import.meta.url).pathname);fs.mkdirSync(path.join(root,'data'),{recursive:true});const db=new DatabaseSync(path.join(root,'data/northline.sqlite'));db.exec('CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY, org TEXT NOT NULL, body TEXT NOT NULL); CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY, at TEXT, action TEXT, job TEXT);');
 const org='northline-demo';const audit=(action:string,id:string)=>db.prepare('INSERT INTO audit(at,action,job) VALUES(?,?,?)').run(new Date().toISOString(),action,id);
 const save=(j:any)=>{j.version??=1;j.candidateReviews??={};j.candidateReviewEvents??=[];db.prepare('INSERT OR REPLACE INTO jobs VALUES(?,?,?)').run(j.id,org,JSON.stringify(j));};
@@ -15,7 +15,7 @@ if(i===6||i===7){add(j,'Page 1\nfinish: Blue\ncolor: Blue','PDF','specification-
 if(i===8){j.revisions.push(approve(j,'reviewer'));add(j,'From: Morgan\nDate: 2026-10-24T10:00:00Z\nSubject: Late revision\nquantity: 900');delete j.resolutions.quantity;}
 save(j);} }
 if(!(db.prepare('SELECT count(*) AS n FROM jobs').get() as any).n)seed();
-const state=(j:any)=>({...j,version:j.version??1,candidateReviews:j.candidateReviews??{},candidateReviewEvents:j.candidateReviewEvents??[],issues:issues(j),status:j.revisions.length?((j.messages.some((m:any)=>!j.revisions.at(-1).sourceIds.includes(m.id))||JSON.stringify(j.resolutions)!==JSON.stringify(j.revisions.at(-1).spec)||JSON.stringify(j.candidateReviews||{})!==JSON.stringify(j.revisions.at(-1).candidateReviewSnapshot||{}))?'Change review':'Approved'):issues(j).length?'Needs review':'Ready for approval'});
+const state=(j:any)=>({...j,version:j.version??1,candidateReviews:j.candidateReviews??{},candidateReviewEvents:j.candidateReviewEvents??[],issues:issues(j),status:j.revisions.length?((j.messages.some((m:any)=>!j.revisions.at(-1).sourceIds.includes(m.id))||!isDeepStrictEqual(j.resolutions,j.revisions.at(-1).spec)||!isDeepStrictEqual(j.candidateReviews||{},j.revisions.at(-1).candidateReviewSnapshot||{}))?'Change review':'Approved'):issues(j).length?'Needs review':'Ready for approval'});
 const server=http.createServer(async(req,res)=>{try{const url=new URL(req.url!,'http://localhost');if(req.headers.origin&&req.headers.origin!==`http://${req.headers.host}`)throw Error('Cross-origin request refused');if(url.pathname.startsWith('/api')){res.setHeader('Content-Type','application/json');let body='';for await(const chunk of req){body+=chunk;if(body.length>2_000_000)throw Error('Input exceeds 2 MB limit');}const p=body?JSON.parse(body):{};
 if(req.method==='GET'&&url.pathname==='/api/jobs'){res.end(JSON.stringify((db.prepare('SELECT body FROM jobs WHERE org=?').all(org) as any[]).map(r=>state(JSON.parse(r.body)))));return;}
 if(req.method==='POST'&&url.pathname==='/api/reset'){db.prepare('DELETE FROM jobs WHERE org=?').run(org);seed();audit('demo reset','all');res.end('{}');return;}
@@ -45,7 +45,7 @@ if(j.candidateReviews[c.id]){delete j.candidateReviews[c.id];j.candidateReviewEv
 else if(action==='approve'){
 if(p.role!=='reviewer')throw Error('Only an authorized reviewer can release production');
 const previous=j.revisions.at(-1);
-if(!previous||JSON.stringify(previous.spec)!==JSON.stringify(j.resolutions)||JSON.stringify(previous.sourceIds)!==JSON.stringify(j.messages.map((m:any)=>m.id))||JSON.stringify(previous.candidateReviewSnapshot||{})!==JSON.stringify(j.candidateReviews||{})){
+if(!previous||!isDeepStrictEqual(previous.spec,j.resolutions)||!isDeepStrictEqual(previous.sourceIds,j.messages.map((m:any)=>m.id))||!isDeepStrictEqual(previous.candidateReviewSnapshot||{},j.candidateReviews||{})){
 j.revisions.push(approve(j,p.role));events.push('approved revision '+j.revisions.length);
 }
 }else throw Error('Unknown action');
