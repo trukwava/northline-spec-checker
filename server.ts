@@ -1,8 +1,8 @@
 import http from 'node:http';import os from 'node:os';import {execFileSync} from 'node:child_process';import fs from 'node:fs';import path from 'node:path';import {DatabaseSync} from 'node:sqlite';import {fields,required,hash,extract,issues,approve} from './domain.ts';
 const root=path.dirname(new URL(import.meta.url).pathname);fs.mkdirSync(path.join(root,'data'),{recursive:true});const db=new DatabaseSync(path.join(root,'data/northline.sqlite'));db.exec('CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY, org TEXT NOT NULL, body TEXT NOT NULL); CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY, at TEXT, action TEXT, job TEXT);');
 const org='northline-demo';const audit=(action:string,id:string)=>db.prepare('INSERT INTO audit(at,action,job) VALUES(?,?,?)').run(new Date().toISOString(),action,id);
-const save=(j:any)=>{j.version??=1;j.candidateReviews??={};db.prepare('INSERT OR REPLACE INTO jobs VALUES(?,?,?)').run(j.id,org,JSON.stringify(j));};
-const get=(id:string)=>{const r:any=db.prepare('SELECT body FROM jobs WHERE id=? AND org=?').get(id,org);if(!r)throw Error('Job not found');const j=JSON.parse(r.body);j.version??=1;j.candidateReviews??={};return j;};
+const save=(j:any)=>{j.version??=1;j.candidateReviews??={};j.candidateReviewEvents??=[];db.prepare('INSERT OR REPLACE INTO jobs VALUES(?,?,?)').run(j.id,org,JSON.stringify(j));};
+const get=(id:string)=>{const r:any=db.prepare('SELECT body FROM jobs WHERE id=? AND org=?').get(id,org);if(!r)throw Error('Job not found');const j=JSON.parse(r.body);j.version??=1;j.candidateReviews??={};j.candidateReviewEvents??=[];return j;};
 const stale=(currentVersion:number)=>Object.assign(new Error('This case changed in another review session. The latest version has been loaded; inspect it before retrying.'),{status:409,code:'STALE_WRITE',currentVersion});
 const commit=(j:any,priorVersion:number)=>{j.version=priorVersion+1;j.updatedAt=new Date().toISOString();const result=db.prepare("UPDATE jobs SET body=? WHERE id=? AND org=? AND COALESCE(CAST(json_extract(body,'$.version') AS INTEGER),1)=?").run(JSON.stringify(j),j.id,org,priorVersion);if(result.changes!==1)throw stale(get(j.id).version);};
 function add(j:any,text:string,kind='email',name='Pasted thread'){const id=hash(text);if(j.messages.some((m:any)=>m.id===id))return false;j.messages.push({id,text,kind,name,receivedAt:new Date().toISOString()});const incoming=extract(text,id);j.candidates.push(...incoming);for(const c of incoming){if(c.kind==='assertion'&&j.resolutions[c.field]&&String(j.resolutions[c.field].value)!==String(c.value))delete j.resolutions[c.field];}j.updatedAt=new Date().toISOString();return true;}
@@ -15,7 +15,7 @@ if(i===6||i===7){add(j,'Page 1\nfinish: Blue\ncolor: Blue','PDF','specification-
 if(i===8){j.revisions.push(approve(j,'reviewer'));add(j,'From: Morgan\nDate: 2026-10-24T10:00:00Z\nSubject: Late revision\nquantity: 900');delete j.resolutions.quantity;}
 save(j);} }
 if(!(db.prepare('SELECT count(*) AS n FROM jobs').get() as any).n)seed();
-const state=(j:any)=>({...j,issues:issues(j),status:j.revisions.length?((j.messages.some((m:any)=>!j.revisions.at(-1).sourceIds.includes(m.id))||JSON.stringify(j.resolutions)!==JSON.stringify(j.revisions.at(-1).spec)||JSON.stringify(j.candidateReviews||{})!==JSON.stringify(j.revisions.at(-1).candidateReviewSnapshot||{}))?'Change review':'Approved'):issues(j).length?'Needs review':'Ready for approval'});
+const state=(j:any)=>({...j,version:j.version??1,candidateReviews:j.candidateReviews??{},candidateReviewEvents:j.candidateReviewEvents??[],issues:issues(j),status:j.revisions.length?((j.messages.some((m:any)=>!j.revisions.at(-1).sourceIds.includes(m.id))||JSON.stringify(j.resolutions)!==JSON.stringify(j.revisions.at(-1).spec)||JSON.stringify(j.candidateReviews||{})!==JSON.stringify(j.revisions.at(-1).candidateReviewSnapshot||{}))?'Change review':'Approved'):issues(j).length?'Needs review':'Ready for approval'});
 const server=http.createServer(async(req,res)=>{try{const url=new URL(req.url!,'http://localhost');if(req.headers.origin&&req.headers.origin!==`http://${req.headers.host}`)throw Error('Cross-origin request refused');if(url.pathname.startsWith('/api')){res.setHeader('Content-Type','application/json');let body='';for await(const chunk of req){body+=chunk;if(body.length>2_000_000)throw Error('Input exceeds 2 MB limit');}const p=body?JSON.parse(body):{};
 if(req.method==='GET'&&url.pathname==='/api/jobs'){res.end(JSON.stringify((db.prepare('SELECT body FROM jobs WHERE org=?').all(org) as any[]).map(r=>state(JSON.parse(r.body)))));return;}
 if(req.method==='POST'&&url.pathname==='/api/reset'){db.prepare('DELETE FROM jobs WHERE org=?').run(org);seed();audit('demo reset','all');res.end('{}');return;}
@@ -34,12 +34,12 @@ if(p.decision==='reject'){
 if(typeof p.reason!=='string'||p.reason.trim().length<3||p.reason.length>300)throw Error('Provide a rejection reason between 3 and 300 characters');
 const reason=p.reason.trim();
 if(!j.candidateReviews[c.id]||j.candidateReviews[c.id].reason!==reason){
-j.candidateReviews[c.id]={status:'rejected',reason,at:new Date().toISOString(),by:'Demo reviewer'};
+const at=new Date().toISOString();j.candidateReviews[c.id]={status:'rejected',reason,at,by:'Demo reviewer'};j.candidateReviewEvents.push({candidateId:c.id,field:c.field,decision:'reject',reason,at,by:'Demo reviewer'});
 if(j.resolutions[c.field]?.candidateId===c.id)delete j.resolutions[c.field];
 events.push('candidate rejected: '+c.field);
 }
 }else if(p.decision==='restore'){
-if(j.candidateReviews[c.id]){delete j.candidateReviews[c.id];events.push('candidate restored: '+c.field);}
+if(j.candidateReviews[c.id]){delete j.candidateReviews[c.id];j.candidateReviewEvents.push({candidateId:c.id,field:c.field,decision:'restore',at:new Date().toISOString(),by:'Demo reviewer'});events.push('candidate restored: '+c.field);}
 }else throw Error('Unknown candidate review decision');
 }
 else if(action==='approve'){
