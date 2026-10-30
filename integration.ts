@@ -3,14 +3,25 @@ import fs from 'node:fs';
 
 // Exercises the actual SQLite-backed loopback API. It resets only synthetic demo jobs.
 const base='http://127.0.0.1:4317/api';
-async function call(path:string,data?:any){
-  const response=await fetch(base+path,data===undefined?{}:{method:'POST',body:JSON.stringify(data),headers:{'content-type':'application/json'}});
+const reviewerKey=process.env.NORTHLINE_REVIEWER_KEY;
+const coordinatorKey=process.env.NORTHLINE_COORDINATOR_KEY;
+assert(reviewerKey&&coordinatorKey,'Integration requires ephemeral keys from the CI runner');
+async function call(path:string,data?:any,key:string=reviewerKey){
+  const headers:Record<string,string>={...(key?{'Authorization':'Bearer '+key}:{})};
+  const response=await fetch(base+path,data===undefined?{headers}:{method:'POST',body:JSON.stringify(data),headers:{...headers,'content-type':'application/json'}});
   return {status:response.status,body:await response.json()};
 }
 const job=(all:any[],id:string)=>all.find((entry:any)=>entry.id===id);
 const all=async()=> (await call('/jobs')).body;
 const ref=async(id:string)=>job(await all(),id);
-const mutate=async(id:string,action:string,version:number,body:any={})=>call('/jobs/'+id+'/'+action,{...body,expectedVersion:version});
+const mutate=async(id:string,action:string,version:number,body:any={},key:string=reviewerKey)=>call('/jobs/'+id+'/'+action,{...body,expectedVersion:version},key);
+assert.equal((await call('/health',undefined,'')).status,200);
+assert.equal((await call('/jobs',undefined,'')).status,401);
+assert.equal((await call('/session',undefined,'')).status,401);
+assert.equal((await call('/jobs',undefined,'a-malformed-key')).status,401);
+assert.equal((await call('/session',undefined,coordinatorKey)).body.role,'coordinator');
+assert.equal((await call('/session',undefined,reviewerKey)).body.role,'reviewer');
+assert.equal((await call('/reset',{},coordinatorKey)).status,403);
 assert.equal((await call('/reset',{})).status,200);
 const original=await all();
 assert.equal(original.length,8);
@@ -24,10 +35,11 @@ const quote=j.candidates.find((c:any)=>c.field==='quantity'&&c.kind==='quoted hi
 let result=await call('/jobs/'+id+'/approve',{role:'reviewer'});
 assert.equal(result.status,428);
 assert.equal(result.body.code,'VERSION_REQUIRED');
-result=await mutate(id,'approve',j.version,{role:'coordinator'});
-assert.equal(result.status,400);
+result=await mutate(id,'approve',j.version,{role:'reviewer'},coordinatorKey);
+assert.equal(result.status,403);
+assert.equal(result.body.code,'FORBIDDEN');
 assert.equal((await ref(id)).version,1);
-result=await mutate(id,'approve',j.version,{role:'reviewer'});
+result=await mutate(id,'approve',j.version,{role:'coordinator'});
 assert.equal(result.status,200);
 assert.equal(result.body.revisions.length,1);
 assert.equal(result.body.version,2);
@@ -124,4 +136,4 @@ assert(result.body.candidates.some((c:any)=>c.field==='finish'&&c.raw==='Red'));
 
 fs.writeFileSync('samples/critical-thread.txt',newSource);
 await call('/reset',{});
-console.log('PASS: candidate-rejection audit, restoration, rejected-source gating, optimistic concurrency, version preconditions, approval immutability, idempotent import, revisions, authorization simulation, cross-field validation and PDF evidence. Demo reset.');
+console.log('PASS: server-enforced local access, role spoof prevention, candidate-rejection audit, restoration, rejected-source gating, optimistic concurrency, version preconditions, approval immutability, idempotent import, revisions, authorization simulation, cross-field validation and PDF evidence. Demo reset.');
