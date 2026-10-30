@@ -52,3 +52,18 @@ dialog{max-width:min(92vw,515px);width:100%;border:1px solid #b8a8e6;border-radi
 .candidate-history ol{margin:10px 0 0;padding-left:19px;display:grid;gap:6px}
 .candidate-history li{font-size:11px;line-height:1.5;color:#6b5661;overflow-wrap:anywhere}
 .candidate-history li strong{color:#6a3b42}
+
+
+/* Local operator capability gate: theatrical but explicit about authority. */
+.access-status{font:700 9px/1.4 ui-monospace,monospace;letter-spacing:.12em;color:#d8c7fd;background:#392a5b;border:1px solid #8a73b8;padding:8px 11px;white-space:nowrap;border-radius:2px}
+.access-switch{border:1px solid #a58fce;background:#f4eafd;color:#3f2c71;font-size:11px;font-weight:800;padding:8px 12px;border-radius:3px;cursor:pointer;white-space:nowrap}
+.access-switch:hover{background:#e8dbff}
+#access-dialog{max-width:min(94vw,560px);border:1px solid #c9b6f8;box-shadow:0 25px 100px #09071fbd}
+#access-dialog::backdrop{background:radial-gradient(circle at 50% 30%,#32204edc,#0e0b1ee8);backdrop-filter:blur(8px)}
+#access-dialog .dialog-form{padding:45px}
+#access-dialog .dialog-form:before{content:"✦";position:absolute;right:35px;top:60px;color:#8a65d2;font-size:35px}
+#access-dialog .dialog-form h2{max-width:370px;font-size:50px}
+#access-dialog .dialog-form input{font-family:ui-monospace,monospace;letter-spacing:.04em}
+#access-error:not(:empty){padding:10px 12px;background:#fff0e7;color:#8d3939;font-size:12px;border-left:3px solid #cc776f}
+.access-disclaimer{margin-top:22px!important;font:11px/1.7 ui-monospace,monospace!important;color:#867b8a!important}
+@media(max-width:720px){.mast-actions{gap:6px}.access-status{font-size:8px;padding:6px}.access-switch{font-size:9px;padding:6px;white-space:normal}#access-dialog .dialog-form{padding:25px}#access-dialog .dialog-form h2{font-size:40px}}
