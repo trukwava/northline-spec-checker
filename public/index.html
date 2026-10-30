@@ -1,1 +1,56 @@
-<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Northline · Work order review</title><link rel="stylesheet" href="/style.css"><body><aside><a class="brand" href="/">N<span>NORTHLINE<br><small>FABRICATION</small></span></a><div class="demo">SYNTHETIC DEMO ORGANIZATION</div><h2>Work orders <button id="new" aria-label="Create job">+</button></h2><nav id="jobs"></nav><footer>Local workspace · New York time<br><button id="reset">Reset demo data</button></footer></aside><main><header><span>OPERATIONS / SPECIFICATION REVIEW</span><label>Active role <select id="role"><option value="coordinator">Coordinator</option><option value="reviewer">Authorized demo reviewer</option></select></label></header><div id="error" role="alert"></div><div id="content">Loading local jobs…</div></main><dialog id="dialog"><form id="form"><h2>Create a work order</h2><label>Job name<input name="name" required maxlength="120"></label><label>Product type<select name="type"><option>Sleeve</option><option>Label</option><option>Carton</option></select></label><button>Create job</button><button type="button" id="cancel">Cancel</button></form></dialog><script type="module" src="/app.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#151625">
+  <meta name="description" content="Northline Atelier — a source-traced, human-governed work-order review studio. Synthetic local demonstration.">
+  <title>Northline Atelier · Specification Intelligence</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="app-shell">
+  <aside class="rail" aria-label="Work order navigation">
+    <a href="/" class="brand" aria-label="Northline Atelier home">
+      <span class="brand-mark" aria-hidden="true">N<span class="brand-mark-dot">.</span></span>
+      <span class="brand-wordmark"><strong>NORTHLINE</strong><small>FABRICATION / ATELIER</small></span>
+    </a>
+    <div class="rail-kicker"><span class="rail-pulse" aria-hidden="true"></span> LOCAL DEMONSTRATION <span>01 / 01</span></div>
+    <div class="rail-section-heading"><span>THE CASE LIBRARY</span><span id="queue-count">—</span></div>
+    <button id="new" class="new-case"><span class="new-icon" aria-hidden="true">+</span><span>New work order</span><span aria-hidden="true">↗</span></button>
+    <label for="job-search" class="sr-only">Find a work order</label>
+    <div class="search-wrap"><span aria-hidden="true">⌕</span><input id="job-search" type="search" placeholder="Search the case library" autocomplete="off"><kbd>/</kbd></div>
+    <nav id="jobs" aria-label="Work orders"><div class="rail-empty">Loading the archive…</div></nav>
+    <div class="rail-foot">
+      <span class="rail-foot-rule"></span>
+      <div class="rail-foot-label">SANDBOX ENVIRONMENT</div>
+      <p>Every name, message and specification in this environment is synthetic. No external messages are sent.</p>
+      <button id="reset" type="button">Restore demonstration <span aria-hidden="true">↻</span></button>
+      <div class="edition">NORTHLINE <em>—</em> SYSTEM EDITION 01</div>
+    </div>
+  </aside>
+  <div class="stage">
+    <header class="masthead">
+      <div class="breadcrumb"><span class="breadcrumb-symbol">N<span>.</span></span><span>OPERATIONS</span><span class="crumb-divider">/</span><strong>SPECIFICATION INTELLIGENCE</strong></div>
+      <div class="mast-actions"><span class="env-indicator"><i aria-hidden="true"></i> LOCAL / NOT CONNECTED</span><label for="role">REVIEW ROLE</label><select id="role"><option value="coordinator">Coordinator</option><option value="reviewer">Authorized demo reviewer</option></select></div>
+    </header>
+    <div id="error" role="alert" aria-live="assertive"></div>
+    <main id="content" tabindex="-1"><div class="loading"><span class="spinner" aria-hidden="true"></span> Opening case library…</div></main>
+    <footer class="page-footer"><span>NORTHLINE / SOURCE-TRACED WORK ORDERS</span><span>DEMO DATA · HUMAN RELEASE REQUIRED · NEW YORK TIME</span></footer>
+  </div>
+</div>
+<dialog id="dialog" aria-labelledby="dialog-title">
+  <form id="form" class="dialog-form">
+    <span class="eyebrow">NEW CASE / 001</span><button id="cancel" class="dialog-close" type="button" aria-label="Close dialog">×</button>
+    <h2 id="dialog-title">Make something <em>precise.</em></h2>
+    <p>Start a new work-order file. Evidence, decisions, and approvals stay with the case.</p>
+    <label>Job title<input name="name" required maxlength="120" placeholder="e.g. Botanical collection sleeves"></label>
+    <label>Product family<select name="type"><option>Sleeve</option><option>Label</option><option>Carton</option></select></label>
+    <button class="primary dialog-submit" type="submit">Create work order <span aria-hidden="true">↗</span></button>
+  </form>
+</dialog>
+<div id="toast" role="status" aria-live="polite"></div>
+<script type="module" src="/app.js"></script>
+</body>
+</html>
