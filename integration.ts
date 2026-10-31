@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import http from 'node:http';
 
 // Exercises the actual SQLite-backed loopback API. It resets only synthetic demo jobs.
 const base='http://127.0.0.1:4317/api';
@@ -39,6 +40,12 @@ const all=async()=> (await call('/jobs')).body;
 const ref=async(id:string)=>job(await all(),id);
 const mutate=async(id:string,action:string,version:number,body:any={},key:string=reviewerKey)=>call('/jobs/'+id+'/'+action,{...body,expectedVersion:version},key);
 assert.equal((await call('/health',undefined,'')).status,200);
+const untrustedHost=await new Promise<number>((resolve,reject)=>{
+  const request=http.get({hostname:'127.0.0.1',port:4317,path:'/api/health',headers:{Host:'malicious.example.test'}},response=>{
+    response.resume();response.on('end',()=>resolve(response.statusCode??0));
+  });request.on('error',reject);
+});
+assert.equal(untrustedHost,421);
 assert.equal((await call('/jobs',undefined,'')).status,401);
 assert.equal((await call('/session',undefined,'')).status,401);
 assert.equal((await call('/jobs',undefined,'a-malformed-key')).status,401);
