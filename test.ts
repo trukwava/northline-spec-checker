@@ -65,7 +65,7 @@ test('session account secrets are randomly generated when unconfigured',()=>{
  assert.equal(a.signIn('reviewer',b.bootstrapSecrets.reviewer),null);
 });
 test('local account secrets reject malformed configuration',()=>{
- for(const bad of [' '.repeat(64),'a'.repeat(63)+' ','a'.repeat(31)+'\\n'+'b'.repeat(32),'é'.repeat(40)])
+ for(const bad of [' '.repeat(64),'a'.repeat(63)+' ','a'.repeat(31)+'\n'+'b'.repeat(32),'é'.repeat(40)])
    assert.throws(()=>createDemoSessions({NORTHLINE_COORDINATOR_KEY:bad}),/printable ASCII/);
  assert.throws(()=>createDemoSessions({NORTHLINE_COORDINATOR_KEY:'x'.repeat(64),NORTHLINE_REVIEWER_KEY:'x'.repeat(64)}),/must differ/);
  assert.throws(()=>createDemoSessions({NORTHLINE_COORDINATOR_KEY:'too-short'}),/32/);
