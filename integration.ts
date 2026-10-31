@@ -79,10 +79,10 @@ assert.equal(result.body.status,'Change review');
 assert.equal(result.body.resolutions.quantity,undefined);
 assert.equal(result.body.candidateReviews[firstQuantity.id].status,'rejected');
 assert.equal(result.body.candidateReviews[firstQuantity.id].reason,'Superseded by customer follow-up');
-assert.equal(result.body.candidateReviews[firstQuantity.id].by,'Local coordinator key');
+assert.equal(result.body.candidateReviews[firstQuantity.id].by,'Demo coordinator account');
 assert.equal(result.body.candidateReviewEvents.length,1);
 assert.equal(result.body.candidateReviewEvents[0].reason,'Superseded by customer follow-up');
-assert.equal(result.body.candidateReviewEvents[0].by,'Local coordinator key');
+assert.equal(result.body.candidateReviewEvents[0].by,'Demo coordinator account');
 assert.equal(JSON.stringify(result.body.revisions[0]),approved);
 const rejectedVersion=result.body.version;
 
@@ -157,7 +157,7 @@ assert.equal((await ref(id)).revisions.length,2);
 const auditAsCoordinator=await call('/jobs/'+id+'/audit',undefined,coordinatorKey);
 assert.equal(auditAsCoordinator.status,200);
 assert.equal(auditAsCoordinator.body.job,id);
-assert(auditAsCoordinator.body.events.some((event:any)=>event.action.includes('Local coordinator key: candidate rejected')));
+assert(auditAsCoordinator.body.events.some((event:any)=>event.action.includes('Demo coordinator account: candidate rejected')));
 assert.equal((await call('/jobs/'+id+'/audit',undefined,'')).status,401);
 assert.equal((await call('/jobs/not-a-job/audit')).status,400);
 
