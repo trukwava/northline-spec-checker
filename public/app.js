@@ -1,7 +1,7 @@
 /* Northline Atelier — evidence-first, offline-capable presentation layer.
    Uses the existing local API. Never invents approvals or sends messages. */
 let jobs = [], current = '', tab = 'overview', query = '', pending = false, highlightedSource = '';
-let toastTimer;let accessKey='',accessRole='';
+let toastTimer;let accessRole='',accessName='',csrfToken='';
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fields = ['customer','jobReference','item','quantity','width','height','depth','unit','material','thickness','artwork','color','printMethod','finish','foil','emboss','tolerance','dueDate','delivery','handling'];
@@ -12,7 +12,7 @@ const statusKey = status => status==='Approved'?'approved':status==='Ready for a
 const dateTime = iso => {try{return new Intl.DateTimeFormat('en-US',{dateStyle:'medium',timeStyle:'short',timeZone:'America/New_York'}).format(new Date(iso));}catch{return 'Unknown time';}};
 const textOrDash = value => value===undefined || value===null || String(value).trim()===''?'—':String(value);
 function notify(message){const toast=$('#toast');toast.textContent=message;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{toast.textContent='';},4200);}
-async function api(path,data){const headers=accessKey?{'Authorization':'Bearer '+accessKey}:{};const response=await fetch(path,data===undefined?{headers}:{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify(data)});let result;try{result=await response.json();}catch{throw Error('The local service returned an unreadable response.');}if(!response.ok){const error=new Error(result.error || 'Operation failed.');error.code=result.code;error.currentVersion=result.currentVersion;throw error;}return result;}
+async function api(path,data){const headers=data===undefined?{}:{'Content-Type':'application/json',...(csrfToken?{'X-Northline-CSRF':csrfToken}:{})};const response=await fetch(path,data===undefined?{headers,credentials:'same-origin'}:{method:'POST',headers,credentials:'same-origin',body:JSON.stringify(data)});let result;try{result=await response.json();}catch{throw Error('The local service returned an unreadable response.');}if(!response.ok){const error=new Error(result.error || 'Operation failed.');error.code=result.code;error.currentVersion=result.currentVersion;throw error;}return result;}
 async function load(){jobs=await api('/api/jobs');if(!jobs.some(j=>j.id===current))current=jobs[0]?.id||'';render();}
 async function act(action,data,success){if(pending)return;const job=jobs.find(entry=>entry.id===current);if(!job){$('#error').textContent='Select a case before changing it.';return;}pending=true;$('#content').setAttribute('aria-busy','true');try{$('#error').textContent='';await api(`/api/jobs/${encodeURIComponent(current)}/${action}`,{...data,expectedVersion:job.version??1});await load();if(success)notify(success);}catch(error){if(error.code==='STALE_WRITE'||error.code==='VERSION_REQUIRED'){try{await load();}catch{}$('#error').textContent='This case changed since you opened it. Latest saved decisions are now shown; inspect them before submitting again.';notify('Stale decision prevented. Case refreshed.');}else{$('#error').textContent=error.message;notify('Action not completed. Review the error message.');if(error.code==='ACCESS_REQUIRED')promptForAccess();}}finally{pending=false;$('#content').removeAttribute('aria-busy');}}
 function renderQueue(){const nav=$('#jobs'),filtered=jobs.filter(j=>(j.name+' '+j.id+' '+j.status+' '+j.type).toLowerCase().includes(query));$('#queue-count').textContent=String(filtered.length).padStart(2,'0');nav.innerHTML=filtered.length?filtered.map(j=>`<button type="button" class="job-card ${j.id===current?'active':''}" data-job="${esc(j.id)}" data-status="${statusKey(j.status)}" ${j.id===current?'aria-current="true"':''}><span class="job-card-top"><span>${esc(j.id)}</span><span>${esc(j.type.toUpperCase())}</span></span><span class="job-card-title">${esc(j.name)}</span><span class="job-status">${esc(j.status)}</span></button>`).join(''):'<div class="rail-empty">No cases match your search.</div>';}
@@ -72,7 +72,47 @@ $('#new').onclick=()=>$('#dialog').showModal();$('#cancel').onclick=()=>$('#dial
 $('#form').onsubmit=async event=>{event.preventDefault();if(pending)return;pending=true;try{const created=await api('/api/jobs',Object.fromEntries(new FormData(event.target)));current=created.id;tab='import';$('#dialog').close();event.target.reset();await load();notify('New case opened. Add evidence to begin.');}catch(error){$('#error').textContent=error.message;}finally{pending=false;}};
 $('#reset').onclick=async()=>{if(!confirm('Restore all eight synthetic demo jobs? Your saved demo decisions and imported demo sources will be removed.'))return;try{await api('/api/reset',{});current='';tab='overview';query='';$('#job-search').value='';await load();notify('Synthetic demonstration restored.');}catch(error){$('#error').textContent=error.message;}};
 document.addEventListener('keydown',event=>{const input=event.target.closest('input,textarea,select,[contenteditable="true"]');if((event.key==='/'&&!input)||((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='k')){event.preventDefault();$('#job-search').focus();}if(event.key==='Escape'&&$('#dialog').open)$('#dialog').close();});
-function promptForAccess(){accessKey='';accessRole='';jobs=[];$('#access-status').textContent='ACCESS LOCKED';$('#reset').disabled=true;$('#content').innerHTML='<div class="empty-state"><strong>Local operator key required.</strong><p>Copy a coordinator or reviewer key from the running server terminal. No source records are shown before local authentication.</p></div>';$('#access-error').textContent='';$('#access-key').value='';if(!$('#access-dialog').open)$('#access-dialog').showModal();}
-$('#access-switch').onclick=promptForAccess;
-$('#access-form').onsubmit=async event=>{event.preventDefault();const candidate=$('#access-key').value.trim();accessKey=candidate;try{const session=await api('/api/session');accessRole=session.role;$('#access-status').textContent=accessRole==='reviewer'?'LOCAL REVIEWER KEY':'LOCAL COORDINATOR KEY';$('#reset').disabled=accessRole!=='reviewer';await load();$('#access-dialog').close();$('#access-key').value='';notify('Server-verified '+accessRole+' capability unlocked. This is not personal identity authentication.');}catch(error){accessKey='';accessRole='';$('#access-error').textContent=error.message;$('#access-key').focus();}};
-promptForAccess();
+function setIdentity(session){
+ accessRole=session.role;accessName=session.label;csrfToken=session.csrfToken;
+ $('#access-status').textContent=(session.role==='reviewer'?'REVIEWER · ':'COORDINATOR · ')+session.id.toUpperCase();
+ $('#access-switch').textContent='Switch account ↗';
+ $('#reset').disabled=session.role!=='reviewer';
+}
+function promptForAccess(){
+ accessRole='';accessName='';csrfToken='';jobs=[];
+ $('#access-status').textContent='ACCESS LOCKED';
+ $('#access-switch').textContent='Sign in ↗';
+ $('#reset').disabled=true;
+ $('#content').innerHTML='<div class="empty-state"><strong>Local demo sign-in required.</strong><p>Choose a demo operator account and enter the password shown in the terminal. Records are hidden until your session is validated.</p></div>';
+ $('#access-error').textContent='';$('#access-key').value='';
+ if(!$('#access-dialog').open)$('#access-dialog').showModal();
+}
+$('#access-switch').onclick=async()=>{
+ if(accessRole){try{await api('/api/logout',{});}catch{}}
+ promptForAccess();
+};
+$('#access-form').onsubmit=async event=>{
+ event.preventDefault();
+ const username=$('#access-user').value,password=$('#access-key').value;
+ try{
+   const session=await api('/api/login',{username,password});
+   setIdentity(session);
+   await load();
+   $('#access-dialog').close();
+   $('#access-key').value='';
+   notify('Signed in as '+session.label+'. Session expires after 30 minutes.');
+ }catch(error){
+   accessRole='';csrfToken='';
+   $('#access-error').textContent=error.message;
+   $('#access-key').value='';
+   $('#access-key').focus();
+ }
+};
+async function resumeSession(){
+ try{
+   const session=await api('/api/session');
+   setIdentity(session);
+   await load();
+ }catch{promptForAccess();}
+}
+resumeSession();
