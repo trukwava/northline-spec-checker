@@ -5,11 +5,34 @@ import fs from 'node:fs';
 const base='http://127.0.0.1:4317/api';
 const reviewerKey=process.env.NORTHLINE_REVIEWER_KEY;
 const coordinatorKey=process.env.NORTHLINE_COORDINATOR_KEY;
-assert(reviewerKey&&coordinatorKey,'Integration requires ephemeral keys from the CI runner');
-async function call(path:string,data?:any,key:string=reviewerKey){
-  const headers:Record<string,string>={...(key?{'Authorization':'Bearer '+key}:{})};
-  const response=await fetch(base+path,data===undefined?{headers}:{method:'POST',body:JSON.stringify(data),headers:{...headers,'content-type':'application/json'}});
-  return {status:response.status,body:await response.json()};
+assert(reviewerKey&&coordinatorKey,'Integration requires ephemeral demo secrets from the CI runner');
+type Identity={cookie:string,csrfToken:string};
+const sessions=new Map<string,Identity>();
+async function signIn(username:string,password:string){
+ const response=await fetch(base+'/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password})});
+ const body=await response.json();
+ return {status:response.status,body,cookie:response.headers.get('set-cookie')?.split(';')[0]||''};
+}
+const rejectUnknown=await signIn('reviewer','bad-password');
+assert.equal(rejectUnknown.status,401);
+const reviewerLogin=await signIn('reviewer',reviewerKey);
+const coordinatorLogin=await signIn('coordinator',coordinatorKey);
+assert.equal(reviewerLogin.status,200);
+assert.equal(coordinatorLogin.status,200);
+assert.equal(reviewerLogin.body.role,'reviewer');
+assert.equal(coordinatorLogin.body.role,'coordinator');
+assert.equal(reviewerLogin.body.id,'reviewer');
+assert.equal(coordinatorLogin.body.id,'coordinator');
+assert.match(reviewerLogin.cookie,/^northline_session=/);
+assert.match(reviewerLogin.body.csrfToken,/^[0-9a-f]{64}$/);
+sessions.set(reviewerKey,{cookie:reviewerLogin.cookie,csrfToken:reviewerLogin.body.csrfToken});
+sessions.set(coordinatorKey,{cookie:coordinatorLogin.cookie,csrfToken:coordinatorLogin.body.csrfToken});
+async function call(p:string,data?:any,key:string=reviewerKey){
+ const identity=sessions.get(key);
+ const headers:Record<string,string>={...(identity?{Cookie:identity.cookie}:{})};
+ if(data!==undefined){headers['content-type']='application/json';if(identity)headers['X-Northline-CSRF']=identity.csrfToken;}
+ const response=await fetch(base+p,data===undefined?{headers}:{method:'POST',body:JSON.stringify(data),headers});
+ return {status:response.status,body:await response.json()};
 }
 const job=(all:any[],id:string)=>all.find((entry:any)=>entry.id===id);
 const all=async()=> (await call('/jobs')).body;
@@ -22,6 +45,9 @@ assert.equal((await call('/jobs',undefined,'a-malformed-key')).status,401);
 assert.equal((await call('/session',undefined,coordinatorKey)).body.role,'coordinator');
 assert.equal((await call('/session',undefined,reviewerKey)).body.role,'reviewer');
 assert.equal((await call('/reset',{},coordinatorKey)).status,403);
+const noCsrf=await fetch(base+'/reset',{method:'POST',headers:{Cookie:reviewerLogin.cookie,'content-type':'application/json'},body:'{}'});
+assert.equal(noCsrf.status,403);
+assert.equal((await noCsrf.json()).code,'INVALID_CSRF');
 assert.equal((await call('/reset',{})).status,200);
 const original=await all();
 assert.equal(original.length,8);
@@ -143,5 +169,12 @@ assert(result.body.candidates.some((c:any)=>c.field==='finish'&&c.raw==='Blue'))
 assert(result.body.candidates.some((c:any)=>c.field==='finish'&&c.raw==='Red'));
 
 fs.writeFileSync('samples/critical-thread.txt',newSource);
+const logout=await call('/logout',{});
+assert.equal(logout.status,200);
+assert.equal((await call('/jobs')).status,401);
+assert.equal((await call('/session')).status,401);
+const relogin=await signIn('reviewer',reviewerKey);
+assert.equal(relogin.status,200);
+sessions.set(reviewerKey,{cookie:relogin.cookie,csrfToken:relogin.body.csrfToken});
 await call('/reset',{});
-console.log('PASS: server-enforced local access, role spoof prevention, candidate-rejection audit, restoration, rejected-source gating, optimistic concurrency, version preconditions, approval immutability, idempotent import, revisions, authorization simulation, cross-field validation and PDF evidence. Demo reset.');
+console.log('PASS: signed demo sessions, HTTP-only cookie, session revocation, CSRF enforcement, role spoof prevention, candidate-rejection audit, restoration, rejected-source gating, optimistic concurrency, version preconditions, approval immutability, idempotent import, revisions, authorization simulation, cross-field validation and PDF evidence. Demo reset.');
