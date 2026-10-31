@@ -21,6 +21,7 @@ res.setHeader('X-Content-Type-Options','nosniff');
 res.setHeader('Referrer-Policy','no-referrer');
 res.setHeader('Cache-Control','no-store');
 res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
+if(!['127.0.0.1:4317','localhost:4317'].includes(req.headers.host||''))throw Object.assign(new Error('Local loopback host required'),{status:421,code:'BAD_HOST'});
 const url=new URL(req.url!,'http://localhost');if(req.headers.origin&&req.headers.origin!==`http://${req.headers.host}`)throw Error('Cross-origin request refused');if(req.method==='GET'&&url.pathname==='/api/health'){res.setHeader('Content-Type','application/json');res.setHeader('Cache-Control','no-store');res.end(JSON.stringify({healthy:true,mode:'synthetic-local-demo'}));return;}
 if(url.pathname.startsWith('/api')){res.setHeader('Content-Type','application/json');
 const readJson=async()=>{let body='';for await(const chunk of req){body+=chunk;if(body.length>2_000_000)throw Error('Input exceeds 2 MB limit');}return body?JSON.parse(body):{};};
