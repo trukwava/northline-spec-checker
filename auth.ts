@@ -37,7 +37,7 @@ export function createDemoSessions(env:Record<string,string|undefined>,now:()=>n
  const publicAccounts=accounts.map(({actor})=>actor);
  const cookie=(token:string,maxAge=1800)=>`${COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/api; Max-Age=${maxAge}`;
  const signIn=(id:string,password:string)=>{
-   if(typeof id!=='string'||typeof password!=='string'||password.length>256)return null;
+   if(typeof id!=='string'||!['coordinator','reviewer'].includes(id)||typeof password!=='string'||password.length>256)return null;
    const lock=attempts.get(id);
    if(lock&&lock.count>=8&&now()<lock.until)return null;
    const account=accounts.find(account=>account.actor.id===id);
