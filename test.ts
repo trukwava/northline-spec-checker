@@ -1,4 +1,4 @@
-import {test} from 'node:test';import assert from 'node:assert/strict';import {extract,issues,approve,hash} from './domain.ts';import {createLocalAccessKeys,authenticateLocal} from './auth.ts';
+import {test} from 'node:test';import assert from 'node:assert/strict';import {extract,issues,approve,hash} from './domain.ts';import {createDemoSessions} from './auth.ts';
 test('questions and quoted quantities do not become instructions',()=>{const c=extract('quantity: 500\n> quantity: 300\nquantity: Would 750 be cheaper?\nquantity: 600','source');assert.deepEqual(c.filter(c=>c.kind==='assertion').map(c=>c.value),[500,600]);assert.equal(c[1].kind,'quoted history');assert.equal(c[2].kind,'question');});
 test('normalizes units while retaining original input',()=>{const c=extract('width: 2 in\nheight: 5 cm\ndepth: 100','a');assert.equal(c[0].value,50.8);assert.equal(c[0].raw,'2 in');assert.equal(c[1].value,50);assert.equal(c[2].unit,null)});
 test('quoted history marker applies to subsequent lines',()=>{assert.equal(extract('On Monday wrote:\nquantity: 300','a')[0].kind,'quoted history')});
@@ -28,33 +28,45 @@ test('rejected source review is captured in approved snapshot and not shared wit
  assert.equal(release.candidateReviewSnapshot.excluded.reason,'Superseded');
 });
 
-test('local operator capabilities are derived on server and cannot be spoofed by request content',()=>{
- const env={NORTHLINE_COORDINATOR_KEY:'c'.repeat(64),NORTHLINE_REVIEWER_KEY:'r'.repeat(64)};
- const {keys,generated}=createLocalAccessKeys(env);
- assert.equal(generated.coordinator,false);
- assert.equal(generated.reviewer,false);
- assert.equal(authenticateLocal('Bearer '+keys.reviewer,keys)?.role,'reviewer');
- assert.equal(authenticateLocal('Bearer '+keys.coordinator,keys)?.role,'coordinator');
- assert.equal(authenticateLocal('Bearer '+keys.coordinator+'wrong',keys),null);
- assert.equal(authenticateLocal('Basic '+keys.reviewer,keys),null);
- assert.equal(authenticateLocal(undefined,keys),null);
- assert.throws(()=>createLocalAccessKeys({NORTHLINE_COORDINATOR_KEY:'short'}),/32/);
- assert.throws(()=>createLocalAccessKeys({NORTHLINE_COORDINATOR_KEY:'x'.repeat(64),NORTHLINE_REVIEWER_KEY:'x'.repeat(64)}),/must differ/);
-});
-test('development access keys are random and per-server-start, not bundled fixed credentials',()=>{
- const a=createLocalAccessKeys({});
- const b=createLocalAccessKeys({});
- assert.equal(a.generated.coordinator,true);
- assert.equal(a.generated.reviewer,true);
- assert.notEqual(a.keys.reviewer,b.keys.reviewer);
- assert.notEqual(a.keys.coordinator,a.keys.reviewer);
-});
 
-test('local capability keys reject whitespace, line breaks and non-ASCII configuration',()=>{
- for(const bad of [' '.repeat(64),'a'.repeat(63)+' ','a'.repeat(31)+'\n'+'b'.repeat(32),'é'.repeat(40)]){
-   assert.throws(()=>createLocalAccessKeys({NORTHLINE_COORDINATOR_KEY:bad}),/printable ASCII/);
- }
- const keys=createLocalAccessKeys({NORTHLINE_COORDINATOR_KEY:'c'.repeat(64),NORTHLINE_REVIEWER_KEY:'r'.repeat(64)}).keys;
- assert.equal(authenticateLocal('Bearer '+'r'.repeat(64)+' ',keys),null);
- assert.equal(authenticateLocal('Bearer '+'c'.repeat(63)+'\n',keys),null);
+test('synthetic demo accounts have server-side roles and revocable sessions',()=>{
+ let clock=10_000;
+ const auth=createDemoSessions({NORTHLINE_COORDINATOR_KEY:'c'.repeat(64),NORTHLINE_REVIEWER_KEY:'r'.repeat(64)},()=>clock);
+ assert.equal(auth.generated.reviewer,false);
+ assert.equal(auth.generated.coordinator,false);
+ assert.equal(auth.signIn('reviewer','wrong'),null);
+ const login=auth.signIn('reviewer','r'.repeat(64));
+ assert(login);
+ assert.equal(login.actor.id,'reviewer');
+ assert.equal(login.actor.role,'reviewer');
+ assert.match(login.setCookie,/HttpOnly; SameSite=Strict; Path=\/api/);
+ assert(!login.setCookie.includes('r'.repeat(64)));
+ const header=login.setCookie.split(';')[0];
+ const session=auth.get(header);
+ assert.equal(session?.actor.role,'reviewer');
+ assert(auth.validCsrf(session,login.csrfToken));
+ assert(!auth.validCsrf(session,'bad'));
+ const coordinator=auth.signIn('coordinator','c'.repeat(64));
+ assert.equal(coordinator?.actor.role,'coordinator');
+ assert.notEqual(coordinator?.csrfToken,login.csrfToken);
+ auth.revoke(header);
+ assert.equal(auth.get(header),null);
+ const second=auth.signIn('reviewer','r'.repeat(64));
+ assert(second);
+ clock+=30*60*1000;
+ assert.equal(auth.get(second.setCookie.split(';')[0]),null);
+});
+test('session account secrets are randomly generated when unconfigured',()=>{
+ const a=createDemoSessions({});
+ const b=createDemoSessions({});
+ assert.equal(a.generated.coordinator,true);
+ assert.notEqual(a.bootstrapSecrets.reviewer,b.bootstrapSecrets.reviewer);
+ assert.notEqual(a.bootstrapSecrets.reviewer,a.bootstrapSecrets.coordinator);
+ assert.equal(a.signIn('reviewer',b.bootstrapSecrets.reviewer),null);
+});
+test('local account secrets reject malformed configuration',()=>{
+ for(const bad of [' '.repeat(64),'a'.repeat(63)+' ','a'.repeat(31)+'\\n'+'b'.repeat(32),'é'.repeat(40)])
+   assert.throws(()=>createDemoSessions({NORTHLINE_COORDINATOR_KEY:bad}),/printable ASCII/);
+ assert.throws(()=>createDemoSessions({NORTHLINE_COORDINATOR_KEY:'x'.repeat(64),NORTHLINE_REVIEWER_KEY:'x'.repeat(64)}),/must differ/);
+ assert.throws(()=>createDemoSessions({NORTHLINE_COORDINATOR_KEY:'too-short'}),/32/);
 });
