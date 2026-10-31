@@ -70,3 +70,13 @@ test('local account secrets reject malformed configuration',()=>{
  assert.throws(()=>createDemoSessions({NORTHLINE_COORDINATOR_KEY:'x'.repeat(64),NORTHLINE_REVIEWER_KEY:'x'.repeat(64)}),/must differ/);
  assert.throws(()=>createDemoSessions({NORTHLINE_COORDINATOR_KEY:'too-short'}),/32/);
 });
+
+test('synthetic login rejects unknown accounts and temporarily locks repeated failures',()=>{
+ let t=1_000_000;
+ const auth=createDemoSessions({NORTHLINE_COORDINATOR_KEY:'c'.repeat(64),NORTHLINE_REVIEWER_KEY:'r'.repeat(64)},()=>t);
+ assert.equal(auth.signIn('not-registered','r'.repeat(64)),null);
+ for(let n=0;n<8;n++)assert.equal(auth.signIn('reviewer','wrong'),null);
+ assert.equal(auth.signIn('reviewer','r'.repeat(64)),null);
+ t+=5*60*1000;
+ assert.equal(auth.signIn('reviewer','r'.repeat(64))?.actor.id,'reviewer');
+});
