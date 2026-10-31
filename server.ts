@@ -1,6 +1,6 @@
-import http from 'node:http';import {isDeepStrictEqual} from 'node:util';import os from 'node:os';import {execFileSync} from 'node:child_process';import fs from 'node:fs';import path from 'node:path';import {DatabaseSync} from 'node:sqlite';import {fields,required,hash,extract,issues,approve} from './domain.ts';import {createLocalAccessKeys,authenticateLocal} from './auth.ts';
+import http from 'node:http';import {isDeepStrictEqual} from 'node:util';import os from 'node:os';import {execFileSync} from 'node:child_process';import fs from 'node:fs';import path from 'node:path';import {DatabaseSync} from 'node:sqlite';import {fields,required,hash,extract,issues,approve} from './domain.ts';import {createDemoSessions} from './auth.ts';
 const root=path.dirname(new URL(import.meta.url).pathname);fs.mkdirSync(path.join(root,'data'),{recursive:true});const db=new DatabaseSync(path.join(root,'data/northline.sqlite'));db.exec('CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY, org TEXT NOT NULL, body TEXT NOT NULL); CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY, at TEXT, action TEXT, job TEXT);');
-const org='northline-demo';const {keys:accessKeys,generated:generatedKeys}=createLocalAccessKeys(process.env);const audit=(action:string,id:string)=>db.prepare('INSERT INTO audit(at,action,job) VALUES(?,?,?)').run(new Date().toISOString(),action,id);
+const org='northline-demo';const demoSessions=createDemoSessions(process.env);const audit=(action:string,id:string)=>db.prepare('INSERT INTO audit(at,action,job) VALUES(?,?,?)').run(new Date().toISOString(),action,id);
 const save=(j:any)=>{j.version??=1;j.candidateReviews??={};j.candidateReviewEvents??=[];db.prepare('INSERT OR REPLACE INTO jobs VALUES(?,?,?)').run(j.id,org,JSON.stringify(j));};
 const get=(id:string)=>{const r:any=db.prepare('SELECT body FROM jobs WHERE id=? AND org=?').get(id,org);if(!r)throw Error('Job not found');const j=JSON.parse(r.body);j.version??=1;j.candidateReviews??={};j.candidateReviewEvents??=[];return j;};
 const stale=(currentVersion:number)=>Object.assign(new Error('This case changed in another review session. The latest version has been loaded; inspect it before retrying.'),{status:409,code:'STALE_WRITE',currentVersion});
@@ -16,12 +16,31 @@ if(i===8){j.revisions.push(approve(j,'reviewer'));add(j,'From: Morgan\nDate: 202
 save(j);} }
 if(!(db.prepare('SELECT count(*) AS n FROM jobs').get() as any).n)seed();
 const state=(j:any)=>({...j,version:j.version??1,candidateReviews:j.candidateReviews??{},candidateReviewEvents:j.candidateReviewEvents??[],issues:issues(j),status:j.revisions.length?((j.messages.some((m:any)=>!j.revisions.at(-1).sourceIds.includes(m.id))||!isDeepStrictEqual(j.resolutions,j.revisions.at(-1).spec)||!isDeepStrictEqual(j.candidateReviews||{},j.revisions.at(-1).candidateReviewSnapshot||{}))?'Change review':'Approved'):issues(j).length?'Needs review':'Ready for approval'});
-const server=http.createServer(async(req,res)=>{try{const url=new URL(req.url!,'http://localhost');if(req.headers.origin&&req.headers.origin!==`http://${req.headers.host}`)throw Error('Cross-origin request refused');if(req.method==='GET'&&url.pathname==='/api/health'){res.setHeader('Content-Type','application/json');res.setHeader('Cache-Control','no-store');res.end(JSON.stringify({healthy:true,mode:'synthetic-local-demo'}));return;}
-if(url.pathname.startsWith('/api')){res.setHeader('Content-Type','application/json');res.setHeader('Cache-Control','no-store');
-const actor=authenticateLocal(req.headers.authorization,accessKeys);
-if(!actor)throw Object.assign(new Error('Local access key required or invalid. Enter the coordinator or reviewer key from the terminal.'),{status:401,code:'ACCESS_REQUIRED'});
-if(req.method==='GET'&&url.pathname==='/api/session'){res.end(JSON.stringify({role:actor.role,org:actor.org,label:actor.label,mode:'local-key-demo',productionReady:false}));return;}
-let body='';for await(const chunk of req){body+=chunk;if(body.length>2_000_000)throw Error('Input exceeds 2 MB limit');}const p=body?JSON.parse(body):{};
+const server=http.createServer(async(req,res)=>{try{
+res.setHeader('X-Content-Type-Options','nosniff');
+res.setHeader('Referrer-Policy','no-referrer');
+res.setHeader('Cache-Control','no-store');
+res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
+const url=new URL(req.url!,'http://localhost');if(req.headers.origin&&req.headers.origin!==`http://${req.headers.host}`)throw Error('Cross-origin request refused');if(req.method==='GET'&&url.pathname==='/api/health'){res.setHeader('Content-Type','application/json');res.setHeader('Cache-Control','no-store');res.end(JSON.stringify({healthy:true,mode:'synthetic-local-demo'}));return;}
+if(url.pathname.startsWith('/api')){res.setHeader('Content-Type','application/json');
+const readJson=async()=>{let body='';for await(const chunk of req){body+=chunk;if(body.length>2_000_000)throw Error('Input exceeds 2 MB limit');}return body?JSON.parse(body):{};};
+if(req.method==='POST'&&url.pathname==='/api/login'){
+  const p=await readJson();
+  const login=demoSessions.signIn(p.username,p.password);
+  if(!login)throw Object.assign(new Error('Invalid local demo credentials or too many unsuccessful attempts.'),{status:401,code:'INVALID_LOGIN'});
+  res.setHeader('Set-Cookie',login.setCookie);
+  res.end(JSON.stringify({...login.actor,csrfToken:login.csrfToken,mode:'local-demo-session',productionReady:false}));
+  return;
+}
+const session=demoSessions.get(req.headers.cookie);
+if(!session)throw Object.assign(new Error('Demo session absent or expired. Sign in again.'),{status:401,code:'ACCESS_REQUIRED'});
+const actor=session.actor;
+if(req.method==='GET'&&url.pathname==='/api/session'){res.end(JSON.stringify({...actor,csrfToken:session.csrf,mode:'local-demo-session',productionReady:false}));return;}
+if(req.method==='POST'){
+ if(!demoSessions.validCsrf(session,req.headers['x-northline-csrf']))throw Object.assign(new Error('Session request token missing or invalid.'),{status:403,code:'INVALID_CSRF'});
+ if(url.pathname==='/api/logout'){demoSessions.revoke(req.headers.cookie);res.setHeader('Set-Cookie',demoSessions.cookie('',0));res.end('{}');return;}
+}
+const p=req.method==='POST'?await readJson():{};
 if(req.method==='GET'&&url.pathname==='/api/jobs'){res.end(JSON.stringify((db.prepare('SELECT body FROM jobs WHERE org=?').all(org) as any[]).map(r=>state(JSON.parse(r.body)))));return;}
 if(req.method==='POST'&&url.pathname==='/api/reset'){if(actor.role!=='reviewer')throw Object.assign(new Error('Only the local reviewer key may reset the demonstration'),{status:403,code:'FORBIDDEN'});db.prepare('DELETE FROM jobs WHERE org=?').run(org);seed();audit('demo reset by '+actor.label,'all');res.end('{}');return;}
 if(req.method==='POST'&&url.pathname==='/api/jobs'){if(!['Sleeve','Label','Carton'].includes(p.type)||!p.name?.trim())throw Error('Enter a name and valid product type');const j={id:'NL-'+crypto.randomUUID().slice(0,8),name:String(p.name).slice(0,120),type:p.type,schemaVersion:'1.0',messages:[],candidates:[],resolutions:{},revisions:[]};save(j);audit('created by '+actor.label,j.id);res.end(JSON.stringify(state(j)));return;}
@@ -56,14 +75,14 @@ else if(action==='approve'){
 if(actor.role!=='reviewer')throw Object.assign(new Error('Only the local reviewer key may approve a revision'),{status:403,code:'FORBIDDEN'});
 const previous=j.revisions.at(-1);
 if(!previous||!isDeepStrictEqual(previous.spec,j.resolutions)||!isDeepStrictEqual(previous.sourceIds,j.messages.map((m:any)=>m.id))||!isDeepStrictEqual(previous.candidateReviewSnapshot||{},j.candidateReviews||{})){
-j.revisions.push(approve(j,actor.role));events.push('approved revision '+j.revisions.length);
+const revision=approve(j,actor.role);revision.approvedBy=actor.label;revision.approvedByActorId=actor.id;j.revisions.push(revision);events.push('approved revision '+j.revisions.length);
 }
 }else throw Error('Unknown action');
 if(JSON.stringify(j)!==before){commit(j,p.expectedVersion);for(const actionName of events)audit(actor.label+': '+actionName,id);}
 }res.end(JSON.stringify(state(j)));return;}
 const target=path.join(root,'public',url.pathname==='/'?'index.html':url.pathname);if(!target.startsWith(path.join(root,'public')+path.sep))throw Error('Invalid path');res.setHeader('Content-Type',target.endsWith('.js')?'text/javascript':target.endsWith('.css')?'text/css':'text/html');res.end(fs.readFileSync(target));}catch(e:any){res.statusCode=e.status||400;res.setHeader('Content-Type','application/json');res.end(JSON.stringify({error:e.message,code:e.code||'BAD_REQUEST',...(e.currentVersion?{currentVersion:e.currentVersion}:{})}));}});server.listen(4317,'127.0.0.1',()=>{
 console.log('Northline: http://127.0.0.1:4317 (synthetic loopback demo)');
-if(generatedKeys.coordinator)console.log('LOCAL COORDINATOR KEY (this server run only): '+accessKeys.coordinator);
-if(generatedKeys.reviewer)console.log('LOCAL REVIEWER KEY (this server run only): '+accessKeys.reviewer);
-console.log('Access keys are local capabilities, NOT authenticated personal identities. Do not expose this service publicly.');
+if(demoSessions.generated.coordinator)console.log('DEMO coordinator password (username coordinator): '+demoSessions.bootstrapSecrets.coordinator);
+if(demoSessions.generated.reviewer)console.log('DEMO reviewer password (username reviewer): '+demoSessions.bootstrapSecrets.reviewer);
+console.log('Local accounts are synthetic and session-based; no verified employee identity. Do not expose this service publicly.');
 });
