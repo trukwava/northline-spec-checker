@@ -2,7 +2,7 @@
 // No npm browser framework, network dependency, or external telemetry.
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
-import {existsSync,mkdtempSync,readFileSync,rmSync} from 'node:fs';
+import {existsSync,mkdtempSync,readFileSync,rmSync,mkdirSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 
@@ -12,6 +12,7 @@ const chromeBin=process.env.NORTHLINE_CHROME_BIN||'google-chrome';
 assert(coordinator&&reviewer,'Set the same ephemeral CI credentials used by the server.');
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const profile=mkdtempSync(join(tmpdir(),'northline-chrome-'));
+const imageDir=join(process.cwd(),'artifacts','browser');
 let browser,ws;
 const pending=new Map();
 let serial=0;
@@ -43,6 +44,11 @@ async function evalInPage(expression){
  return result.result?.value;
 }
 async function ready(){await until(()=>evalInPage('document.readyState==="complete"'),'document load');}
+async function screenshot(name){
+ const result=await cdp('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});
+ mkdirSync(imageDir,{recursive:true});
+ writeFileSync(join(imageDir,name+'.png'),Buffer.from(result.data,'base64'));
+}
 async function waitFor(expression,label){return until(()=>evalInPage(expression),label);}
 async function click(selector){
  assert(await evalInPage('!!document.querySelector('+JSON.stringify(selector)+')'),'Missing control: '+selector);
@@ -84,6 +90,10 @@ async function run(){
  await navigate('http://127.0.0.1:4317/');
  await waitFor('document.querySelector("#access-dialog")?.open===true','locked opening screen');
  assert(!(await evalInPage('document.querySelector("[data-job]")')),'Unauthenticated cases must not appear.');
+ await evalInPage('(()=>{document.querySelector("#access-user").value="coordinator";document.querySelector("#access-key").value="definitely-invalid";document.querySelector("#access-form").requestSubmit();return true;})()');
+ await waitFor('document.querySelector("#access-error")?.textContent.length>0','visible failed-login feedback');
+ assert.equal(await evalInPage('document.querySelector("#access-dialog").open'),true,'Failed login must not dismiss the gate.');
+ assert.equal(await evalInPage('!!document.querySelector("[data-job]")'),false,'Failed login must not reveal jobs.');
 
  await login('coordinator',coordinator);
  await click('[data-job="NL-1041"]');
@@ -100,6 +110,7 @@ async function run(){
  assert.equal(await evalInPage('document.querySelector("#approve").disabled'),false,'Reviewer must be able to approve fixture.');
  await click('#approve');
  await waitFor('document.querySelector(".job-card.active .job-status")?.textContent==="Approved"','approved case');
+ await screenshot('desktop-approved-case');
  await click('[data-tab="sources"]');
  await waitFor('!!document.querySelector(".source-card")','source evidence timeline');
 
@@ -114,12 +125,13 @@ async function run(){
  await waitFor('!!document.querySelector("[data-job]")','mobile session recovered');
  const metrics=await evalInPage('({viewport:innerWidth,documentWidth:document.documentElement.scrollWidth,railScrollable:document.querySelector("#jobs").scrollWidth>document.querySelector("#jobs").clientWidth})');
  assert(metrics.documentWidth<=metrics.viewport+4,'Unexpected horizontal overflow on mobile: '+JSON.stringify(metrics));
+ await screenshot('mobile-case-library');
  await click('#access-switch');
  await waitFor('document.querySelector("#access-dialog")?.open===true','signed-out screen');
  const status=await evalInPage('fetch("/api/session",{credentials:"same-origin"}).then(r=>r.status)');
  assert.equal(status,401,'Switching operator must revoke the previous session.');
  assert.equal(exceptions.length,0,'Uncaught browser exceptions: '+exceptions.join('\n'));
- console.log('PASS browser: locked entry, coordinator restriction, reviewer approval, evidence timeline, session reload, mobile viewport, logout and JS exceptions.');
+ console.log('PASS browser: incorrect login, locked entry, coordinator restriction, reviewer approval, evidence timeline, session reload, mobile viewport, logout, screenshots and JS exceptions.');
 }
 try{await run();}
 finally{
