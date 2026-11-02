@@ -137,5 +137,9 @@ try{await run();}
 finally{
  if(ws?.readyState===WebSocket.OPEN)ws.close();
  browser?.kill('SIGTERM');
- rmSync(profile,{recursive:true,force:true});
+ // Chrome may still be flushing profile files while SIGTERM propagates.
+ // Cleanup is best-effort and must not turn a successful browser test into a failed run.
+ try{rmSync(profile,{recursive:true,force:true,maxRetries:20,retryDelay:250});}
+ catch(error){console.warn('Chrome profile cleanup deferred: '+error.message);}
+
 }
