@@ -40,3 +40,12 @@ jobs:
           curl --fail --silent http://127.0.0.1:4317/api/health > /dev/null
           node --experimental-strip-types integration.ts
           node tests/browser-smoke.mjs
+      - name: Attach real browser screenshots
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: northline-atelier-browser
+          path: artifacts/browser/*.png
+          if-no-files-found: ignore
+          retention-days: 7
