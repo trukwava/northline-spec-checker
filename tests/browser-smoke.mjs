@@ -112,6 +112,8 @@ async function run(){
  await waitFor('document.querySelector(".job-card.active .job-status")?.textContent==="Approved"','approved case');
  await click('[data-tab="revisions"]');
  await waitFor('document.querySelector(".release-receipt.verified")?.textContent.includes("VERIFIED")','verified release receipt');
+ await waitFor('document.querySelector(".release-attestation.valid-untrusted")?.textContent.includes("SIGNER NOT TRUSTED")','signed release without independent signer trust');
+ assert(await evalInPage('!!document.querySelector("[data-signer-key]")'),'Signer public key export control missing');
  assert(await evalInPage('!!document.querySelector("[data-format=bundle]")'),'A verified release must offer an evidence packet');
  await screenshot('desktop-approved-case');
  await click('[data-tab="overview"]');

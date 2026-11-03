@@ -72,3 +72,16 @@ New synthetic approvals now include a reproducible SHA-256 fingerprint covering 
 ### Portable release evidence
 
 Use **Evidence packet** from the release archive to download approved fields, the stored SHA-256 receipt, and the exact referenced source texts. Independently check the packet with `node --experimental-strip-types scripts/verify-bundle.ts path/to/file.bundle` (exit 0 verified, 1 mismatch, 2 legacy). The receipt does **not** cover the packet's outer case label and is not a cryptographic signature or independent proof of authenticity.
+
+
+## Signed approvals and external trust
+
+New synthetic releases carry an **Ed25519 digital signature** binding the release receipt SHA-256, case identity, revision and synthetic approver attribution. By default the demo generates a fresh signing private key at every server start; for repeatability set `NORTHLINE_ATTESTATION_PRIVATE_KEY_FILE` to a local Ed25519 PKCS#8 PEM file **outside the repository**. Do not commit or share private signing keys.
+
+A signature can be mathematically verified with its embedded public key, but **that alone does not establish signer trust**. The release archive labels it *signature valid · signer not trusted*. The authenticated `GET /api/attestation-public-key` and per-release public-key download are convenience exports, not independent sources of signer identity. Use a public key distributed and pinned through a trusted channel:
+
+```sh
+node --experimental-strip-types scripts/verify-bundle.ts evidence.json --trusted-public-key independent-public-key.pem
+```
+
+CLI exits: **0** trusted signature and matching SHA-256 receipt; **1** invalid receipt/signature or wrong pinned key; **2** unsigned release or legacy receipt; **3** valid signature with no independently trusted key. `--receipt-only` returns 0 for a matching checksum without establishing any signer identity. Earlier unsigned approvals remain unsigned. This project still does not identify real employees or authorize actual manufacturing; see `docs/SIGNED_ATTESTATIONS.md`.
