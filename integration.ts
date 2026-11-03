@@ -76,6 +76,13 @@ result=await mutate(id,'approve',j.version,{role:'coordinator'});
 assert.equal(result.status,200);
 assert.equal(result.body.revisions.length,1);
 assert.equal(result.body.revisions[0].integrity.status,'verified');
+assert.equal(result.body.revisions[0].attestationStatus.status,'valid-untrusted');
+assert.equal(result.body.revisions[0].attestation.algorithm,'Ed25519');
+const signerInfo=await call('/attestation-public-key');
+assert.equal(signerInfo.status,200);
+assert.equal(signerInfo.body.keyId,result.body.revisions[0].attestation.keyId);
+assert.equal(signerInfo.body.publicKeyPem,result.body.revisions[0].attestation.publicKeyPem);
+assert.equal((await call('/attestation-public-key',undefined,'')).status,401);
 assert.match(result.body.revisions[0].receipt.sha256,/^[a-f0-9]{64}$/);
 const verification=await call('/jobs/'+id+'/releases/0/verify');
 assert.equal(verification.status,200);
@@ -162,6 +169,7 @@ assert.equal(result.status,200);
 assert.equal(result.body.revisions.length,2);
 assert.equal(result.body.revisions[1].spec.quantity.value,600);
 assert.equal(result.body.revisions[1].integrity.status,'verified');
+assert.equal(result.body.revisions[1].attestationStatus.status,'valid-untrusted');
 assert.equal(JSON.stringify(result.body.revisions[0]),approved);
 assert.equal(result.body.status,'Approved');
 fs.writeFileSync('samples/expected-approved.json',JSON.stringify(result.body.revisions[1],null,2));
@@ -179,6 +187,7 @@ assert.equal((await call('/jobs/not-a-job/audit')).status,400);
 
 // Seeded historical approval is never retroactively presented as a verified receipt.
 assert.equal((await ref('NL-1048')).revisions[0].integrity.status,'legacy');
+assert.equal((await ref('NL-1048')).revisions[0].attestationStatus.status,'unsigned');
 // PDF evidence still imports and shows blue/red source conflict.
 j=await ref('NL-1046');
 result=await mutate('NL-1046','pdf',j.version,{base64:fs.readFileSync('samples/specification-1.pdf').toString('base64'),name:'specification-1.pdf'});

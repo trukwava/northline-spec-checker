@@ -9,6 +9,6 @@ export function buildReleaseBundle(job,revision){
    return {id:record.id,name:record.name||'',kind:record.kind||'',receivedAt:record.receivedAt||null,text:record.text};
  });
  // Computed UI verification status is NOT persisted as part of the original approval.
- const {integrity,...snapshot}=revision;
+ const {integrity,attestationStatus,...snapshot}=revision;
  return {format:'northline-evidence-bundle-v1',case:{id:job.id,name:job.name,type:job.type},revision:snapshot,sources:sourceRecords};
 }
