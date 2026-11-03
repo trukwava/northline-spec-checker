@@ -1,4 +1,4 @@
-import {test} from 'node:test';import assert from 'node:assert/strict';import {extract,issues,approve,hash} from './domain.ts';import {createDemoSessions} from './auth.ts';import {sealRelease,verifyRelease} from './receipts.ts';import {buildReleaseBundle} from './public/release-bundle.js';import {verifyBundle} from './scripts/verify-bundle.ts';
+import {test} from 'node:test';import assert from 'node:assert/strict';import {extract,issues,approve,hash} from './domain.ts';import {createDemoSessions} from './auth.ts';import {sealRelease,verifyRelease} from './receipts.ts';import {buildReleaseBundle} from './public/release-bundle.js';import {verifyBundle} from './scripts/verify-bundle.ts';import {spawnSync} from 'node:child_process';import {mkdtempSync,writeFileSync,rmSync} from 'node:fs';import {tmpdir} from 'node:os';import {join} from 'node:path';
 test('questions and quoted quantities do not become instructions',()=>{const c=extract('quantity: 500\n> quantity: 300\nquantity: Would 750 be cheaper?\nquantity: 600','source');assert.deepEqual(c.filter(c=>c.kind==='assertion').map(c=>c.value),[500,600]);assert.equal(c[1].kind,'quoted history');assert.equal(c[2].kind,'question');});
 test('normalizes units while retaining original input',()=>{const c=extract('width: 2 in\nheight: 5 cm\ndepth: 100','a');assert.equal(c[0].value,50.8);assert.equal(c[0].raw,'2 in');assert.equal(c[1].value,50);assert.equal(c[2].unit,null)});
 test('quoted history marker applies to subsequent lines',()=>{assert.equal(extract('On Monday wrote:\nquantity: 300','a')[0].kind,'quoted history')});
@@ -142,4 +142,31 @@ test('evidence packets refuse integrity-mismatched releases',()=>{
  const r=approve(j,'reviewer');sealRelease(j,r);
  assert.throws(()=>buildReleaseBundle(j,{...r,integrity:{status:'mismatch'}}),/mismatched/);
  assert.equal(verifyBundle({format:'northline-evidence-bundle-v1',case:{id:'NL-T'},revision:{...r,receipt:undefined},sources:[{id:'a',text:'One'}]}).status,'legacy');
+});
+
+test('actual offline verifier process returns exact exit semantics',()=>{
+ const j=job();j.id='NL-CLI';j.name='Offline proof';j.messages=[{id:'source-1',text:'quantity: 500'}];
+ const r=approve(j,'reviewer');r.approvedBy='Demo reviewer account';sealRelease(j,r);
+ const bundle=buildReleaseBundle(j,r);
+ const tmp=mkdtempSync(join(tmpdir(),'northline-verify-'));
+ const file=join(tmp,'sample.bundle');
+ const execute=()=>spawnSync(process.execPath,['--experimental-strip-types','scripts/verify-bundle.ts',file],{encoding:'utf8',timeout:15000});
+ try{
+  writeFileSync(file,JSON.stringify(bundle));
+  const good=execute();
+  assert.equal(good.status,0,good.stderr);
+  assert.match(good.stdout,/VERIFIED:/);
+  assert.match(good.stdout,/SHA-256: [a-f0-9]{64}/);
+  bundle.sources[0].text='quantity: 999';
+  writeFileSync(file,JSON.stringify(bundle));
+  const bad=execute();
+  assert.equal(bad.status,1,bad.stderr);
+  assert.match(bad.stdout,/MISMATCH:/);
+  bundle.sources[0].text='quantity: 500';
+  delete bundle.revision.receipt;
+  writeFileSync(file,JSON.stringify(bundle));
+  const legacy=execute();
+  assert.equal(legacy.status,2,legacy.stderr);
+  assert.match(legacy.stdout,/UNVERIFIED LEGACY:/);
+ }finally{rmSync(tmp,{recursive:true,force:true});}
 });
