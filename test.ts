@@ -1,4 +1,4 @@
-import {test} from 'node:test';import assert from 'node:assert/strict';import {extract,issues,approve,hash} from './domain.ts';import {createDemoSessions} from './auth.ts';import {sealRelease,verifyRelease} from './receipts.ts';
+import {test} from 'node:test';import assert from 'node:assert/strict';import {extract,issues,approve,hash} from './domain.ts';import {createDemoSessions} from './auth.ts';import {sealRelease,verifyRelease} from './receipts.ts';import {buildReleaseBundle} from './public/release-bundle.js';import {verifyBundle} from './scripts/verify-bundle.ts';
 test('questions and quoted quantities do not become instructions',()=>{const c=extract('quantity: 500\n> quantity: 300\nquantity: Would 750 be cheaper?\nquantity: 600','source');assert.deepEqual(c.filter(c=>c.kind==='assertion').map(c=>c.value),[500,600]);assert.equal(c[1].kind,'quoted history');assert.equal(c[2].kind,'question');});
 test('normalizes units while retaining original input',()=>{const c=extract('width: 2 in\nheight: 5 cm\ndepth: 100','a');assert.equal(c[0].value,50.8);assert.equal(c[0].raw,'2 in');assert.equal(c[1].value,50);assert.equal(c[2].unit,null)});
 test('quoted history marker applies to subsequent lines',()=>{assert.equal(extract('On Monday wrote:\nquantity: 300','a')[0].kind,'quoted history')});
@@ -119,4 +119,27 @@ test('canonical receipt fingerprint ignores JSON object key ordering but not cha
  assert.equal(verifyRelease(j,r).status,'verified');
  r.approvedAt='2000-01-01T00:00:00.000Z';
  assert.equal(verifyRelease(j,r).status,'mismatch');
+});
+
+test('portable evidence packet verifies independently and rejects omitted or substituted sources',()=>{
+ const j=job();j.id='NL-TEST';j.name='Demo test';j.messages=[{id:'source-1',name:'Customer proof',kind:'email',text:'width: 100 mm',receivedAt:'2026-10-20T00:00:00Z'}];
+ const r=approve(j,'reviewer');r.approvedBy='Demo reviewer account';sealRelease(j,r);
+ const bundle=buildReleaseBundle(j,{...r,integrity:verifyRelease(j,r)});
+ assert.equal(bundle.format,'northline-evidence-bundle-v1');
+ assert.equal(verifyBundle(bundle).status,'verified');
+ assert.equal(bundle.revision.integrity,undefined);
+ bundle.sources[0].text='width: 200 mm';
+ assert.equal(verifyBundle(bundle).status,'mismatch');
+ bundle.sources[0].text='width: 100 mm';
+ bundle.sources.push({...bundle.sources[0],id:'unsanctioned'});
+ assert.equal(verifyBundle(bundle).status,'mismatch');
+ bundle.sources.pop();
+ const changed={...bundle,revision:{...bundle.revision,spec:{...bundle.revision.spec,quantity:{value:2000}}}};
+ assert.equal(verifyBundle(changed).status,'mismatch');
+});
+test('evidence packets refuse integrity-mismatched releases',()=>{
+ const j=job();j.id='NL-T';j.messages=[{id:'a',text:'One'}];
+ const r=approve(j,'reviewer');sealRelease(j,r);
+ assert.throws(()=>buildReleaseBundle(j,{...r,integrity:{status:'mismatch'}}),/mismatched/);
+ assert.equal(verifyBundle({format:'northline-evidence-bundle-v1',case:{id:'NL-T'},revision:{...r,receipt:undefined},sources:[{id:'a',text:'One'}]}).status,'legacy');
 });
