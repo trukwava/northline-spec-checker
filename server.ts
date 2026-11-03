@@ -1,6 +1,6 @@
-import http from 'node:http';import {isDeepStrictEqual} from 'node:util';import os from 'node:os';import {execFileSync} from 'node:child_process';import fs from 'node:fs';import path from 'node:path';import {DatabaseSync} from 'node:sqlite';import {fields,required,hash,extract,issues,approve} from './domain.ts';import {createDemoSessions} from './auth.ts';import {sealRelease,verifyRelease} from './receipts.ts';
+import http from 'node:http';import {isDeepStrictEqual} from 'node:util';import os from 'node:os';import {execFileSync} from 'node:child_process';import fs from 'node:fs';import path from 'node:path';import {DatabaseSync} from 'node:sqlite';import {fields,required,hash,extract,issues,approve} from './domain.ts';import {createDemoSessions} from './auth.ts';import {sealRelease,verifyRelease} from './receipts.ts';import {createAttestationSigner,verifyAttestation} from './attestations.ts';
 const root=path.dirname(new URL(import.meta.url).pathname);fs.mkdirSync(path.join(root,'data'),{recursive:true});const db=new DatabaseSync(path.join(root,'data/northline.sqlite'));db.exec('CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY, org TEXT NOT NULL, body TEXT NOT NULL); CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY, at TEXT, action TEXT, job TEXT);');
-const org='northline-demo';const demoSessions=createDemoSessions(process.env);const audit=(action:string,id:string)=>db.prepare('INSERT INTO audit(at,action,job) VALUES(?,?,?)').run(new Date().toISOString(),action,id);
+const org='northline-demo';const demoSessions=createDemoSessions(process.env);const signer=createAttestationSigner(process.env);const audit=(action:string,id:string)=>db.prepare('INSERT INTO audit(at,action,job) VALUES(?,?,?)').run(new Date().toISOString(),action,id);
 const save=(j:any)=>{j.version??=1;j.candidateReviews??={};j.candidateReviewEvents??=[];db.prepare('INSERT OR REPLACE INTO jobs VALUES(?,?,?)').run(j.id,org,JSON.stringify(j));};
 const get=(id:string)=>{const r:any=db.prepare('SELECT body FROM jobs WHERE id=? AND org=?').get(id,org);if(!r)throw Error('Job not found');const j=JSON.parse(r.body);j.version??=1;j.candidateReviews??={};j.candidateReviewEvents??=[];return j;};
 const stale=(currentVersion:number)=>Object.assign(new Error('This case changed in another review session. The latest version has been loaded; inspect it before retrying.'),{status:409,code:'STALE_WRITE',currentVersion});
@@ -15,7 +15,7 @@ if(i===6||i===7){add(j,'Page 1\nfinish: Blue\ncolor: Blue','PDF','specification-
 if(i===8){j.revisions.push(approve(j,'reviewer'));add(j,'From: Morgan\nDate: 2026-10-24T10:00:00Z\nSubject: Late revision\nquantity: 900');delete j.resolutions.quantity;}
 save(j);} }
 if(!(db.prepare('SELECT count(*) AS n FROM jobs').get() as any).n)seed();
-const state=(j:any)=>({...j,revisions:(j.revisions||[]).map((revision:any)=>({...revision,integrity:verifyRelease(j,revision)})),version:j.version??1,candidateReviews:j.candidateReviews??{},candidateReviewEvents:j.candidateReviewEvents??[],issues:issues(j),status:j.revisions.length?((j.messages.some((m:any)=>!j.revisions.at(-1).sourceIds.includes(m.id))||!isDeepStrictEqual(j.resolutions,j.revisions.at(-1).spec)||!isDeepStrictEqual(j.candidateReviews||{},j.revisions.at(-1).candidateReviewSnapshot||{}))?'Change review':'Approved'):issues(j).length?'Needs review':'Ready for approval'});
+const state=(j:any)=>({...j,revisions:(j.revisions||[]).map((revision:any)=>({...revision,integrity:verifyRelease(j,revision),attestationStatus:verifyAttestation(org,j,revision)})),version:j.version??1,candidateReviews:j.candidateReviews??{},candidateReviewEvents:j.candidateReviewEvents??[],issues:issues(j),status:j.revisions.length?((j.messages.some((m:any)=>!j.revisions.at(-1).sourceIds.includes(m.id))||!isDeepStrictEqual(j.resolutions,j.revisions.at(-1).spec)||!isDeepStrictEqual(j.candidateReviews||{},j.revisions.at(-1).candidateReviewSnapshot||{}))?'Change review':'Approved'):issues(j).length?'Needs review':'Ready for approval'});
 const server=http.createServer(async(req,res)=>{try{
 res.setHeader('X-Content-Type-Options','nosniff');
 res.setHeader('Referrer-Policy','no-referrer');
@@ -37,6 +37,7 @@ const session=demoSessions.get(req.headers.cookie);
 if(!session)throw Object.assign(new Error('Demo session absent or expired. Sign in again.'),{status:401,code:'ACCESS_REQUIRED'});
 const actor=session.actor;
 if(req.method==='GET'&&url.pathname==='/api/session'){res.end(JSON.stringify({...actor,csrfToken:session.csrf,mode:'local-demo-session',productionReady:false}));return;}
+if(req.method==='GET'&&url.pathname==='/api/attestation-public-key'){res.end(JSON.stringify({algorithm:'Ed25519',keyId:signer.keyId,publicKeyPem:signer.publicKeyPem,ephemeral:signer.ephemeral,note:'Same-server public keys are not independent trust anchors'}));return;}
 if(req.method==='POST'){
  if(!demoSessions.validCsrf(session,req.headers['x-northline-csrf']))throw Object.assign(new Error('Session request token missing or invalid.'),{status:403,code:'INVALID_CSRF'});
  if(url.pathname==='/api/logout'){demoSessions.revoke(req.headers.cookie);res.setHeader('Set-Cookie',demoSessions.cookie('',0));res.end('{}');return;}
@@ -82,7 +83,7 @@ else if(action==='approve'){
 if(actor.role!=='reviewer')throw Object.assign(new Error('Only the local reviewer key may approve a revision'),{status:403,code:'FORBIDDEN'});
 const previous=j.revisions.at(-1);
 if(!previous||!isDeepStrictEqual(previous.spec,j.resolutions)||!isDeepStrictEqual(previous.sourceIds,j.messages.map((m:any)=>m.id))||!isDeepStrictEqual(previous.candidateReviewSnapshot||{},j.candidateReviews||{})){
-const revision=approve(j,actor.role);revision.approvedBy=actor.label;revision.approvedByActorId=actor.id;sealRelease(j,revision);j.revisions.push(revision);events.push('approved revision '+j.revisions.length);
+const revision=approve(j,actor.role);revision.approvedBy=actor.label;revision.approvedByActorId=actor.id;sealRelease(j,revision);signer.signRelease(org,j,revision);j.revisions.push(revision);events.push('approved revision '+j.revisions.length);
 }
 }else throw Error('Unknown action');
 if(JSON.stringify(j)!==before){commit(j,p.expectedVersion);for(const actionName of events)audit(actor.label+': '+actionName,id);}
@@ -92,4 +93,5 @@ console.log('Northline: http://127.0.0.1:4317 (synthetic loopback demo)');
 if(demoSessions.generated.coordinator)console.log('DEMO coordinator password (username coordinator): '+demoSessions.bootstrapSecrets.coordinator);
 if(demoSessions.generated.reviewer)console.log('DEMO reviewer password (username reviewer): '+demoSessions.bootstrapSecrets.reviewer);
 console.log('Local accounts are synthetic and session-based; no verified employee identity. Do not expose this service publicly.');
+console.log('Signing public key fingerprint: '+signer.keyId+(signer.ephemeral?' (ephemeral key)':' (configured key)')+'. This is not independently anchored trust.');
 });

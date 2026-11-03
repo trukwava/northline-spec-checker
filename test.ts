@@ -1,4 +1,4 @@
-import {test} from 'node:test';import assert from 'node:assert/strict';import {extract,issues,approve,hash} from './domain.ts';import {createDemoSessions} from './auth.ts';import {sealRelease,verifyRelease} from './receipts.ts';import {buildReleaseBundle} from './public/release-bundle.js';import {verifyBundle} from './scripts/verify-bundle.ts';import {spawnSync} from 'node:child_process';import {mkdtempSync,writeFileSync,rmSync} from 'node:fs';import {tmpdir} from 'node:os';import {join} from 'node:path';
+import {test} from 'node:test';import assert from 'node:assert/strict';import {extract,issues,approve,hash} from './domain.ts';import {createDemoSessions} from './auth.ts';import {sealRelease,verifyRelease} from './receipts.ts';import {buildReleaseBundle} from './public/release-bundle.js';import {verifyBundle} from './scripts/verify-bundle.ts';import {createAttestationSigner,verifyAttestation} from './attestations.ts';import {spawnSync} from 'node:child_process';import {mkdtempSync,writeFileSync,rmSync} from 'node:fs';import {tmpdir} from 'node:os';import {join} from 'node:path';
 test('questions and quoted quantities do not become instructions',()=>{const c=extract('quantity: 500\n> quantity: 300\nquantity: Would 750 be cheaper?\nquantity: 600','source');assert.deepEqual(c.filter(c=>c.kind==='assertion').map(c=>c.value),[500,600]);assert.equal(c[1].kind,'quoted history');assert.equal(c[2].kind,'question');});
 test('normalizes units while retaining original input',()=>{const c=extract('width: 2 in\nheight: 5 cm\ndepth: 100','a');assert.equal(c[0].value,50.8);assert.equal(c[0].raw,'2 in');assert.equal(c[1].value,50);assert.equal(c[2].unit,null)});
 test('quoted history marker applies to subsequent lines',()=>{assert.equal(extract('On Monday wrote:\nquantity: 300','a')[0].kind,'quoted history')});
@@ -150,12 +150,12 @@ test('actual offline verifier process returns exact exit semantics',()=>{
  const bundle=buildReleaseBundle(j,r);
  const tmp=mkdtempSync(join(tmpdir(),'northline-verify-'));
  const file=join(tmp,'sample.bundle');
- const execute=()=>spawnSync(process.execPath,['--experimental-strip-types','scripts/verify-bundle.ts',file],{encoding:'utf8',timeout:15000});
+ const execute=(args:string[]=['--receipt-only'])=>spawnSync(process.execPath,['--experimental-strip-types','scripts/verify-bundle.ts',file,...args],{encoding:'utf8',timeout:15000});
  try{
   writeFileSync(file,JSON.stringify(bundle));
   const good=execute();
   assert.equal(good.status,0,good.stderr);
-  assert.match(good.stdout,/VERIFIED:/);
+  assert.match(good.stdout,/SHA-256 RECEIPT VERIFIED:/);
   assert.match(good.stdout,/SHA-256: [a-f0-9]{64}/);
   bundle.sources[0].text='quantity: 999';
   writeFileSync(file,JSON.stringify(bundle));
@@ -169,4 +169,53 @@ test('actual offline verifier process returns exact exit semantics',()=>{
   assert.equal(legacy.status,2,legacy.stderr);
   assert.match(legacy.stdout,/UNVERIFIED LEGACY:/);
  }finally{rmSync(tmp,{recursive:true,force:true});}
+});
+
+test('Ed25519 binds receipt and reviewer, but embedded key alone is not trustworthy',()=>{
+ const signer=createAttestationSigner({}),other=createAttestationSigner({});
+ const j=job();j.id='NL-SIGNED';j.messages=[{id:'a',text:'quantity: 500'}];
+ const r=approve(j,'reviewer');r.approvedBy='Demo reviewer account';r.approvedByActorId='reviewer';
+ sealRelease(j,r);signer.signRelease('northline-demo',j,r);
+ assert.equal(verifyAttestation('northline-demo',j,r).status,'valid-untrusted');
+ assert.equal(verifyAttestation('northline-demo',j,r,signer.publicKeyPem).status,'trusted');
+ assert.equal(verifyAttestation('northline-demo',j,r,other.publicKeyPem).status,'untrusted');
+ assert.equal(verifyAttestation('northline-demo',{id:'NL-SPOOF'},r).status,'invalid');
+ assert.equal(verifyAttestation('wrong-organization',j,r).status,'invalid');
+ const receipt=r.receipt.sha256;r.receipt.sha256='0'.repeat(64);
+ assert.equal(verifyAttestation('northline-demo',j,r).status,'invalid');
+ r.receipt.sha256=receipt;r.attestation.signature='AAAA';
+ assert.equal(verifyAttestation('northline-demo',j,r).status,'invalid');
+});
+test('portable signed bundle requires externally pinned trust for validated identity',()=>{
+ const signer=createAttestationSigner({}),other=createAttestationSigner({});
+ const j=job();j.id='NL-BUNDLE';j.messages=[{id:'a',text:'Artwork revision 3'}];
+ const r=approve(j,'reviewer');r.approvedBy='Demo reviewer account';r.approvedByActorId='reviewer';
+ sealRelease(j,r);signer.signRelease('northline-demo',j,r);
+ const bundle=buildReleaseBundle(j,r);
+ assert.equal(verifyBundle(bundle).status,'verified');
+ assert.equal(verifyBundle(bundle).attestation.status,'valid-untrusted');
+ assert.equal(verifyBundle(bundle,{trustedPublicKeyPem:signer.publicKeyPem}).attestation.status,'trusted');
+ assert.equal(verifyBundle(bundle,{trustedPublicKeyPem:other.publicKeyPem}).attestation.status,'untrusted');
+ bundle.case.id='NL-FORGED';
+ assert.equal(verifyBundle(bundle).attestation.status,'invalid');
+ bundle.case.id='NL-BUNDLE';bundle.sources[0].text='Artwork revision 4';
+ assert.equal(verifyBundle(bundle).status,'mismatch');
+});
+test('standalone verifier checks externally pinned Ed25519 key, not embedded key alone',()=>{
+ const signer=createAttestationSigner({}),wrong=createAttestationSigner({});
+ const j=job();j.id='NL-CLI-SIG';j.messages=[{id:'a',text:'Material: board'}];
+ const r=approve(j,'reviewer');r.approvedBy='Demo reviewer account';r.approvedByActorId='reviewer';
+ sealRelease(j,r);signer.signRelease('northline-demo',j,r);
+ const dir=mkdtempSync(join(tmpdir(),'northline-sign-')),bundle=join(dir,'bundle.json'),pem=join(dir,'pinned.pem'),bad=join(dir,'wrong.pem');
+ const run=(...args:string[])=>spawnSync(process.execPath,['--experimental-strip-types','scripts/verify-bundle.ts',bundle,...args],{encoding:'utf8',timeout:15000});
+ try{
+  writeFileSync(bundle,JSON.stringify(buildReleaseBundle(j,r)));
+  writeFileSync(pem,signer.publicKeyPem);writeFileSync(bad,wrong.publicKeyPem);
+  assert.equal(run().status,3);
+  const trusted=run('--trusted-public-key',pem);
+  assert.equal(trusted.status,0,trusted.stderr);
+  assert.match(trusted.stdout,/TRUSTED SIGNATURE VERIFIED/);
+  assert.equal(run('--trusted-public-key',bad).status,1);
+  assert.equal(run('--receipt-only').status,0);
+ }finally{rmSync(dir,{recursive:true,force:true});}
 });
