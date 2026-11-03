@@ -90,3 +90,11 @@ dialog{max-width:min(92vw,515px);width:100%;border:1px solid #b8a8e6;border-radi
 .release-receipt-symbol{display:grid;place-items:center;border:1px solid currentColor;border-radius:50%;width:22px;height:22px;flex-shrink:0;font-size:13px}
 .release-receipt code{display:block;overflow-wrap:anywhere;word-break:break-all;margin:9px 0;font:11px/1.6 ui-monospace,monospace;color:#443450}
 .release-receipt p{font-size:11px;line-height:1.6;color:#75667a;margin:4px 0 0}
+
+/* Signer validity is distinct from whether the signer is trusted. */
+.release-attestation{padding:13px 16px;margin:-5px 0 17px;border:1px solid #c9c3d8;background:#f6f4fb;color:#4f4268}
+.release-attestation.invalid,.release-attestation.untrusted{border-color:#e5b6ad;background:#fff1ef;color:#923f37}
+.release-attestation.unsigned{background:#f7f5f3;color:#736d71;border-color:#d8d1cd}
+.release-attestation strong{display:block;font:700 10px/1.5 ui-monospace,monospace;letter-spacing:.09em}
+.release-attestation code{display:block;overflow-wrap:anywhere;word-break:break-all;margin:7px 0;font:10px/1.6 ui-monospace,monospace;color:inherit}
+.release-attestation p{margin:6px 0 0;font-size:11px;line-height:1.5;color:inherit}
