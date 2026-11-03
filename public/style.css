@@ -78,3 +78,15 @@ dialog{max-width:min(92vw,515px);width:100%;border:1px solid #b8a8e6;border-radi
 .activity-journal strong{font-size:13px;font-weight:750;overflow-wrap:anywhere;color:#33263d}
 .activity-journal li div span{font:10px/1.6 ui-monospace,monospace;color:#8a7b8b}
 @media(max-width:520px){.activity-journal li{grid-template-columns:55px minmax(0,1fr);padding:15px 12px;gap:9px}}
+
+
+/* Approved release receipt: fingerprint, not third-party attestation. */
+.release-receipt{margin:16px 0 14px;border:1px solid #d8d1d8;border-left:4px solid #8d7aab;padding:13px 16px;background:#f8f6fa;max-width:680px}
+.release-receipt.verified{border-left-color:#477a6b;background:#f1f8f4;border-color:#c7dad1}
+.release-receipt.mismatch{border-left-color:#b45447;background:#fff2ef;border-color:#e9cbc6}
+.release-receipt-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#514366;font:700 10px/1.5 ui-monospace,monospace;letter-spacing:.07em}
+.release-receipt.verified .release-receipt-heading{color:#326e59}
+.release-receipt.mismatch .release-receipt-heading{color:#963e39}
+.release-receipt-symbol{display:grid;place-items:center;border:1px solid currentColor;border-radius:50%;width:22px;height:22px;flex-shrink:0;font-size:13px}
+.release-receipt code{display:block;overflow-wrap:anywhere;word-break:break-all;margin:9px 0;font:11px/1.6 ui-monospace,monospace;color:#443450}
+.release-receipt p{font-size:11px;line-height:1.6;color:#75667a;margin:4px 0 0}

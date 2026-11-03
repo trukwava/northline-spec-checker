@@ -1,4 +1,4 @@
-import http from 'node:http';import {isDeepStrictEqual} from 'node:util';import os from 'node:os';import {execFileSync} from 'node:child_process';import fs from 'node:fs';import path from 'node:path';import {DatabaseSync} from 'node:sqlite';import {fields,required,hash,extract,issues,approve} from './domain.ts';import {createDemoSessions} from './auth.ts';
+import http from 'node:http';import {isDeepStrictEqual} from 'node:util';import os from 'node:os';import {execFileSync} from 'node:child_process';import fs from 'node:fs';import path from 'node:path';import {DatabaseSync} from 'node:sqlite';import {fields,required,hash,extract,issues,approve} from './domain.ts';import {createDemoSessions} from './auth.ts';import {sealRelease,verifyRelease} from './receipts.ts';
 const root=path.dirname(new URL(import.meta.url).pathname);fs.mkdirSync(path.join(root,'data'),{recursive:true});const db=new DatabaseSync(path.join(root,'data/northline.sqlite'));db.exec('CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY, org TEXT NOT NULL, body TEXT NOT NULL); CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY, at TEXT, action TEXT, job TEXT);');
 const org='northline-demo';const demoSessions=createDemoSessions(process.env);const audit=(action:string,id:string)=>db.prepare('INSERT INTO audit(at,action,job) VALUES(?,?,?)').run(new Date().toISOString(),action,id);
 const save=(j:any)=>{j.version??=1;j.candidateReviews??={};j.candidateReviewEvents??=[];db.prepare('INSERT OR REPLACE INTO jobs VALUES(?,?,?)').run(j.id,org,JSON.stringify(j));};
@@ -15,7 +15,7 @@ if(i===6||i===7){add(j,'Page 1\nfinish: Blue\ncolor: Blue','PDF','specification-
 if(i===8){j.revisions.push(approve(j,'reviewer'));add(j,'From: Morgan\nDate: 2026-10-24T10:00:00Z\nSubject: Late revision\nquantity: 900');delete j.resolutions.quantity;}
 save(j);} }
 if(!(db.prepare('SELECT count(*) AS n FROM jobs').get() as any).n)seed();
-const state=(j:any)=>({...j,version:j.version??1,candidateReviews:j.candidateReviews??{},candidateReviewEvents:j.candidateReviewEvents??[],issues:issues(j),status:j.revisions.length?((j.messages.some((m:any)=>!j.revisions.at(-1).sourceIds.includes(m.id))||!isDeepStrictEqual(j.resolutions,j.revisions.at(-1).spec)||!isDeepStrictEqual(j.candidateReviews||{},j.revisions.at(-1).candidateReviewSnapshot||{}))?'Change review':'Approved'):issues(j).length?'Needs review':'Ready for approval'});
+const state=(j:any)=>({...j,revisions:(j.revisions||[]).map((revision:any)=>({...revision,integrity:verifyRelease(j,revision)})),version:j.version??1,candidateReviews:j.candidateReviews??{},candidateReviewEvents:j.candidateReviewEvents??[],issues:issues(j),status:j.revisions.length?((j.messages.some((m:any)=>!j.revisions.at(-1).sourceIds.includes(m.id))||!isDeepStrictEqual(j.resolutions,j.revisions.at(-1).spec)||!isDeepStrictEqual(j.candidateReviews||{},j.revisions.at(-1).candidateReviewSnapshot||{}))?'Change review':'Approved'):issues(j).length?'Needs review':'Ready for approval'});
 const server=http.createServer(async(req,res)=>{try{
 res.setHeader('X-Content-Type-Options','nosniff');
 res.setHeader('Referrer-Policy','no-referrer');
@@ -46,6 +46,12 @@ if(req.method==='GET'&&url.pathname==='/api/jobs'){res.end(JSON.stringify((db.pr
 if(req.method==='POST'&&url.pathname==='/api/reset'){if(actor.role!=='reviewer')throw Object.assign(new Error('Only the local reviewer key may reset the demonstration'),{status:403,code:'FORBIDDEN'});db.prepare('DELETE FROM jobs WHERE org=?').run(org);seed();audit('demo reset by '+actor.label,'all');res.end('{}');return;}
 if(req.method==='POST'&&url.pathname==='/api/jobs'){if(!['Sleeve','Label','Carton'].includes(p.type)||!p.name?.trim())throw Error('Enter a name and valid product type');const j={id:'NL-'+crypto.randomUUID().slice(0,8),name:String(p.name).slice(0,120),type:p.type,schemaVersion:'1.0',messages:[],candidates:[],resolutions:{},revisions:[]};save(j);audit('created by '+actor.label,j.id);res.end(JSON.stringify(state(j)));return;}
 const id=url.pathname.split('/')[3];const j=get(id);
+const verifyRoute=url.pathname.match(/^\/api\/jobs\/[^/]+\/releases\/(\d+)\/verify$/);
+if(req.method==='GET'&&verifyRoute){
+ const index=Number(verifyRoute[1]),release=j.revisions[index];
+ if(!Number.isSafeInteger(index)||!release)throw Object.assign(new Error('Approved release not found'),{status:404,code:'RELEASE_NOT_FOUND'});
+ res.end(JSON.stringify({caseId:j.id,revisionNumber:release.number,integrity:verifyRelease(j,release)}));return;
+}
 if(req.method==='GET'&&url.pathname===`/api/jobs/${id}/audit`){
 const rows=db.prepare('SELECT id,at,action FROM audit WHERE job=? ORDER BY id DESC LIMIT 100').all(id);
 res.end(JSON.stringify({job:id,events:rows,limit:100,note:'Local capability labels are not verified personal identities'}));return;
@@ -76,7 +82,7 @@ else if(action==='approve'){
 if(actor.role!=='reviewer')throw Object.assign(new Error('Only the local reviewer key may approve a revision'),{status:403,code:'FORBIDDEN'});
 const previous=j.revisions.at(-1);
 if(!previous||!isDeepStrictEqual(previous.spec,j.resolutions)||!isDeepStrictEqual(previous.sourceIds,j.messages.map((m:any)=>m.id))||!isDeepStrictEqual(previous.candidateReviewSnapshot||{},j.candidateReviews||{})){
-const revision=approve(j,actor.role);revision.approvedBy=actor.label;revision.approvedByActorId=actor.id;j.revisions.push(revision);events.push('approved revision '+j.revisions.length);
+const revision=approve(j,actor.role);revision.approvedBy=actor.label;revision.approvedByActorId=actor.id;sealRelease(j,revision);j.revisions.push(revision);events.push('approved revision '+j.revisions.length);
 }
 }else throw Error('Unknown action');
 if(JSON.stringify(j)!==before){commit(j,p.expectedVersion);for(const actionName of events)audit(actor.label+': '+actionName,id);}

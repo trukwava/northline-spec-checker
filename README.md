@@ -64,3 +64,7 @@ Only bootstrap passwords generated at startup are shown to the local terminal. E
 ## Access validation and activity ledger
 
 Configured local keys must contain 32–256 printable ASCII characters without spaces. Keep them outside the repository. A new per-case **Activity ledger** reads up to 100 recent event metadata entries through an authenticated API route. This improves operator visibility but does not make the audit database tamper-proof or identify individual humans. This ledger is intentionally distinct from the immutable approved production snapshots and the per-candidate adjudication history.
+
+## Release integrity receipts
+
+New synthetic approvals now include a reproducible SHA-256 fingerprint covering the saved approved revision and the exact source text referenced at sign-off. The release archive displays **verified**, **mismatch**, or **unverified legacy** status; exports are blocked when a stored receipt no longer matches. Later draft changes do not invalidate a genuine earlier release. This is a **local consistency checksum, not a tamper-proof signature**; administrators can rewrite the database and recompute hashes. See [`docs/RELEASE_RECEIPTS.md`](docs/RELEASE_RECEIPTS.md).

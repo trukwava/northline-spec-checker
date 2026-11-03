@@ -110,7 +110,10 @@ async function run(){
  assert.equal(await evalInPage('document.querySelector("#approve").disabled'),false,'Reviewer must be able to approve fixture.');
  await click('#approve');
  await waitFor('document.querySelector(".job-card.active .job-status")?.textContent==="Approved"','approved case');
+ await click('[data-tab="revisions"]');
+ await waitFor('document.querySelector(".release-receipt.verified")?.textContent.includes("VERIFIED")','verified release receipt');
  await screenshot('desktop-approved-case');
+ await click('[data-tab="overview"]');
  await click('[data-tab="sources"]');
  await waitFor('!!document.querySelector(".source-card")','source evidence timeline');
 

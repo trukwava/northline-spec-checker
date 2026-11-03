@@ -1,4 +1,4 @@
-import {test} from 'node:test';import assert from 'node:assert/strict';import {extract,issues,approve,hash} from './domain.ts';import {createDemoSessions} from './auth.ts';
+import {test} from 'node:test';import assert from 'node:assert/strict';import {extract,issues,approve,hash} from './domain.ts';import {createDemoSessions} from './auth.ts';import {sealRelease,verifyRelease} from './receipts.ts';
 test('questions and quoted quantities do not become instructions',()=>{const c=extract('quantity: 500\n> quantity: 300\nquantity: Would 750 be cheaper?\nquantity: 600','source');assert.deepEqual(c.filter(c=>c.kind==='assertion').map(c=>c.value),[500,600]);assert.equal(c[1].kind,'quoted history');assert.equal(c[2].kind,'question');});
 test('normalizes units while retaining original input',()=>{const c=extract('width: 2 in\nheight: 5 cm\ndepth: 100','a');assert.equal(c[0].value,50.8);assert.equal(c[0].raw,'2 in');assert.equal(c[1].value,50);assert.equal(c[2].unit,null)});
 test('quoted history marker applies to subsequent lines',()=>{assert.equal(extract('On Monday wrote:\nquantity: 300','a')[0].kind,'quoted history')});
@@ -79,4 +79,44 @@ test('synthetic login rejects unknown accounts and temporarily locks repeated fa
  assert.equal(auth.signIn('reviewer','r'.repeat(64)),null);
  t+=5*60*1000;
  assert.equal(auth.signIn('reviewer','r'.repeat(64))?.actor.id,'reviewer');
+});
+
+test('release receipts cover approved snapshot and exact referenced source text',()=>{
+ const j=job();j.messages=[{id:'s1',text:'quantity: 500'}];
+ const r=approve(j,'reviewer');r.approvedBy='Demo reviewer account';r.approvedByActorId='reviewer';
+ sealRelease(j,r);
+ assert.equal(verifyRelease(j,r).status,'verified');
+ assert.match(r.receipt.sha256,/^[a-f0-9]{64}$/);
+ const digest=r.receipt.sha256;
+ j.resolutions.quantity.value=900;
+ assert.equal(verifyRelease(j,r).status,'verified','Later draft changes must not invalidate earlier receipts');
+ j.messages.push({id:'new',text:'quantity: 900'});
+ assert.equal(verifyRelease(j,r).status,'verified','New sources are not part of old approval');
+ j.messages[0].text='quantity: 600';
+ assert.equal(verifyRelease(j,r).status,'mismatch');
+ j.messages[0].text='quantity: 500';
+ assert.equal(verifyRelease(j,r).status,'verified');
+ r.spec.quantity.value=123;
+ assert.equal(verifyRelease(j,r).status,'mismatch');
+ r.spec.quantity.value=500;
+ assert.equal(verifyRelease(j,r).sha256,digest);
+});
+test('missing release evidence and malformed hashes fail closed; historical approvals remain unverified',()=>{
+ const j=job();j.messages=[{id:'s1',text:'Artwork: R3'}];const r=approve(j,'reviewer');
+ assert.equal(verifyRelease(j,r).status,'legacy');
+ sealRelease(j,r);
+ assert.equal(verifyRelease(j,r).status,'verified');
+ r.receipt.sourceHashes[0].sha256='0'.repeat(64);
+ assert.equal(verifyRelease(j,r).status,'mismatch');
+ sealRelease(j,r);
+ j.messages=[];
+ assert.equal(verifyRelease(j,r).status,'mismatch');
+});
+test('canonical receipt fingerprint ignores JSON object key ordering but not changes',()=>{
+ const j=job();j.messages=[{id:'a',text:'One'}];const r=approve(j,'reviewer');
+ sealRelease(j,r);
+ r.spec=Object.fromEntries(Object.entries(r.spec).reverse());
+ assert.equal(verifyRelease(j,r).status,'verified');
+ r.approvedAt='2000-01-01T00:00:00.000Z';
+ assert.equal(verifyRelease(j,r).status,'mismatch');
 });
