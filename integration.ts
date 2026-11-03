@@ -75,6 +75,13 @@ assert.equal((await ref(id)).version,1);
 result=await mutate(id,'approve',j.version,{role:'coordinator'});
 assert.equal(result.status,200);
 assert.equal(result.body.revisions.length,1);
+assert.equal(result.body.revisions[0].integrity.status,'verified');
+assert.match(result.body.revisions[0].receipt.sha256,/^[a-f0-9]{64}$/);
+const verification=await call('/jobs/'+id+'/releases/0/verify');
+assert.equal(verification.status,200);
+assert.equal(verification.body.integrity.status,'verified');
+assert.equal(verification.body.integrity.sha256,result.body.revisions[0].receipt.sha256);
+assert.equal((await call('/jobs/'+id+'/releases/99/verify')).status,404);
 assert.equal(result.body.version,2);
 const approved=JSON.stringify(result.body.revisions[0]);
 const initialVersion=result.body.version;
@@ -91,6 +98,7 @@ assert.equal(result.body.candidateReviewEvents.length,1);
 assert.equal(result.body.candidateReviewEvents[0].reason,'Superseded by customer follow-up');
 assert.equal(result.body.candidateReviewEvents[0].by,'Demo coordinator account');
 assert.equal(JSON.stringify(result.body.revisions[0]),approved);
+assert.equal((await call('/jobs/'+id+'/releases/0/verify')).body.integrity.status,'verified');
 const rejectedVersion=result.body.version;
 
 // Same rejection is idempotent; omitted or outdated versions never clobber decisions.
@@ -153,6 +161,7 @@ result=await mutate(id,'approve',result.body.version,{role:'reviewer'});
 assert.equal(result.status,200);
 assert.equal(result.body.revisions.length,2);
 assert.equal(result.body.revisions[1].spec.quantity.value,600);
+assert.equal(result.body.revisions[1].integrity.status,'verified');
 assert.equal(JSON.stringify(result.body.revisions[0]),approved);
 assert.equal(result.body.status,'Approved');
 fs.writeFileSync('samples/expected-approved.json',JSON.stringify(result.body.revisions[1],null,2));
@@ -168,6 +177,8 @@ assert(auditAsCoordinator.body.events.some((event:any)=>event.action.includes('D
 assert.equal((await call('/jobs/'+id+'/audit',undefined,'')).status,401);
 assert.equal((await call('/jobs/not-a-job/audit')).status,400);
 
+// Seeded historical approval is never retroactively presented as a verified receipt.
+assert.equal((await ref('NL-1048')).revisions[0].integrity.status,'legacy');
 // PDF evidence still imports and shows blue/red source conflict.
 j=await ref('NL-1046');
 result=await mutate('NL-1046','pdf',j.version,{base64:fs.readFileSync('samples/specification-1.pdf').toString('base64'),name:'specification-1.pdf'});
