@@ -68,3 +68,7 @@ Configured local keys must contain 32–256 printable ASCII characters without s
 ## Release integrity receipts
 
 New synthetic approvals now include a reproducible SHA-256 fingerprint covering the saved approved revision and the exact source text referenced at sign-off. The release archive displays **verified**, **mismatch**, or **unverified legacy** status; exports are blocked when a stored receipt no longer matches. Later draft changes do not invalidate a genuine earlier release. This is a **local consistency checksum, not a tamper-proof signature**; administrators can rewrite the database and recompute hashes. See [`docs/RELEASE_RECEIPTS.md`](docs/RELEASE_RECEIPTS.md).
+
+### Portable release evidence
+
+Use **Evidence packet** from the release archive to download approved fields, the stored SHA-256 receipt, and the exact referenced source texts. Independently check the packet with `node --experimental-strip-types scripts/verify-bundle.ts path/to/file.bundle` (exit 0 verified, 1 mismatch, 2 legacy). The receipt does **not** cover the packet's outer case label and is not a cryptographic signature or independent proof of authenticity.

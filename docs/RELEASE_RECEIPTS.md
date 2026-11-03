@@ -11,3 +11,17 @@ Important limitations: this is a **self-contained consistency checksum, not a di
 The API is still restricted to loopback and synthetic demo accounts. Do not use this to approve real work orders, represent it as tamper-proof, or expose it publicly.
 
 Tests cover source text changes, approved specification changes, key-order invariance, missing source data, legacy releases, late evidence, successful API verification, and rendered browser receipt state.
+
+## Exporting and checking an evidence packet without the app
+
+The release archive's **Evidence packet** control downloads a JSON document containing the approved release and the exact source text referenced at sign-off. It does not include passwords, session cookies or unrelated source records. Treat exported source text as potentially sensitive in a real deployment (this demo only uses synthetic material).
+
+From a local checkout of the repository, run:
+
+```sh
+node --experimental-strip-types scripts/verify-bundle.ts NL-1041-revision-1.bundle
+```
+
+The CLI returns **VERIFIED** with the digest and exit code 0 only when the packet's source list and the fingerprint match. A mismatch returns exit code 1; a legacy unsealed release returns exit code 2. This is independent recomputation using the same public canonicalization algorithm, not third-party attestation. The bundle includes a synthetic case name/ID for presentation but the fingerprint authenticates only the release fields and referenced source text, **not the outer case envelope**.
+
+The offline CLI is deliberately dependency-free and does not contact an external service. It cannot detect an adversary who changes both the packet and its checksum or who substitutes an entirely forged but internally consistent packet. A production system needs a trusted external signature/witness and secure distribution of public verification keys.
