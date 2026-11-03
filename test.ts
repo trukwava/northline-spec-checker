@@ -156,7 +156,7 @@ test('actual offline verifier process returns exact exit semantics',()=>{
   const good=execute();
   assert.equal(good.status,0,good.stderr);
   assert.match(good.stdout,/SHA-256 RECEIPT VERIFIED:/);
-  assert.match(good.stdout,/SHA-256: [a-f0-9]{64}/);
+  assert.match(good.stdout,/SHA-256 RECEIPT VERIFIED: [a-f0-9]{64}/);
   bundle.sources[0].text='quantity: 999';
   writeFileSync(file,JSON.stringify(bundle));
   const bad=execute();
