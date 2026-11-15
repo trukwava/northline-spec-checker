@@ -35,7 +35,11 @@ Three complete, two missing-detail, two conflicting and one late-change fixture 
 npm test
 # With server running (integration check resets synthetic demo decisions):
 NORTHLINE_COORDINATOR_KEY=<your-existing-key> NORTHLINE_REVIEWER_KEY=<your-existing-key> node --experimental-strip-types integration.ts
+# Same variables plus a local Chrome or Chromium binary:
+NORTHLINE_CHROME_BIN=/path/to/chrome NORTHLINE_COORDINATOR_KEY=... NORTHLINE_REVIEWER_KEY=... node tests/browser-smoke.mjs
 ```
+
+Both runs write only to the git-ignored `artifacts/` folder: the integration check saves its approved revision and imported source to `artifacts/integration/`, and the browser check saves screenshots to `artifacts/browser/`. The tracked files in `samples/` are inputs and are never rewritten.
 
 The initial demo passed eight domain tests and its original API integration. This branch adds automated regression cases for candidate rejection, approved adjudication snapshots, rejected-claim comparison and optimistic concurrency. See GitHub Actions for the latest branch execution result. Browser verification rendered the matrix, approved NL-1041, reopened approved revisions after a browser reload and showed the saved quantity, units and artwork. Desktop screenshot is in `docs/preview.png`. Mobile/tablet CSS exists but viewport testing and a complete keyboard-only pass have not been performed. No real job accuracy or time-saving claim has been measured.
 

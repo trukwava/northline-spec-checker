@@ -4,6 +4,9 @@ import http from 'node:http';
 
 // Exercises the actual SQLite-backed loopback API. It resets only synthetic demo jobs.
 const base='http://127.0.0.1:4317/api';
+// Run outputs go to the git-ignored artifacts/ folder so tracked samples/ stay unchanged.
+const outputDir='artifacts/integration';
+fs.mkdirSync(outputDir,{recursive:true});
 const reviewerKey=process.env.NORTHLINE_REVIEWER_KEY;
 const coordinatorKey=process.env.NORTHLINE_COORDINATOR_KEY;
 assert(reviewerKey&&coordinatorKey,'Integration requires ephemeral demo secrets from the CI runner');
@@ -172,7 +175,7 @@ assert.equal(result.body.revisions[1].integrity.status,'verified');
 assert.equal(result.body.revisions[1].attestationStatus.status,'valid-untrusted');
 assert.equal(JSON.stringify(result.body.revisions[0]),approved);
 assert.equal(result.body.status,'Approved');
-fs.writeFileSync('samples/expected-approved.json',JSON.stringify(result.body.revisions[1],null,2));
+fs.writeFileSync(outputDir+'/expected-approved.json',JSON.stringify(result.body.revisions[1],null,2));
 
 // A second reviewer cannot approve against an older state.
 result=await mutate(id,'approve',incomingVersion,{role:'reviewer'});
@@ -195,7 +198,7 @@ assert.equal(result.status,200);
 assert(result.body.candidates.some((c:any)=>c.field==='finish'&&c.raw==='Blue'));
 assert(result.body.candidates.some((c:any)=>c.field==='finish'&&c.raw==='Red'));
 
-fs.writeFileSync('samples/critical-thread.txt',newSource);
+fs.writeFileSync(outputDir+'/critical-thread.txt',newSource);
 const logout=await call('/logout',{});
 assert.equal(logout.status,200);
 assert.equal((await call('/jobs')).status,401);
