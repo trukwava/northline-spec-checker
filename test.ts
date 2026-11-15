@@ -80,6 +80,20 @@ test('synthetic login rejects unknown accounts and temporarily locks repeated fa
  t+=5*60*1000;
  assert.equal(auth.signIn('reviewer','r'.repeat(64))?.actor.id,'reviewer');
 });
+test('login failures reset when a lock expires and expired sessions are pruned',()=>{
+ let t=2_000_000;
+ const auth=createDemoSessions({NORTHLINE_COORDINATOR_KEY:'c'.repeat(64),NORTHLINE_REVIEWER_KEY:'r'.repeat(64)},()=>t);
+ for(let n=0;n<8;n++)assert.equal(auth.signIn('reviewer','wrong'),null);
+ assert.equal(auth.signIn('reviewer','r'.repeat(64)),null);
+ assert.equal(auth.signIn('coordinator','c'.repeat(64))?.actor.id,'coordinator','Lock is per account');
+ t+=5*60*1000;
+ for(let n=0;n<7;n++)assert.equal(auth.signIn('reviewer','wrong'),null);
+ assert.equal(auth.signIn('reviewer','r'.repeat(64))?.actor.id,'reviewer','Expired lock must not carry failures forward');
+ assert.equal(auth.sessionCount(),2);
+ t+=30*60*1000;
+ assert(auth.signIn('reviewer','r'.repeat(64)));
+ assert.equal(auth.sessionCount(),1,'Expired sessions are pruned at sign-in');
+});
 
 test('release receipts cover approved snapshot and exact referenced source text',()=>{
  const j=job();j.messages=[{id:'s1',text:'quantity: 500'}];

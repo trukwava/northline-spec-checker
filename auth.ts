@@ -5,6 +5,7 @@ export type DemoActor={id:string,label:string,role:DemoRole,org:'northline-demo'
 type Account={actor:DemoActor,salt:Buffer,hash:Buffer};
 type Session={actor:DemoActor,csrf:string,expiresAt:number};
 const TTL_MS=30*60*1000;
+const LOCK_AFTER=8,LOCK_MS=5*60*1000;
 const COOKIE='northline_session';
 const strong=(value:string|undefined,name:string)=>{
  if(value!==undefined){
@@ -38,17 +39,20 @@ export function createDemoSessions(env:Record<string,string|undefined>,now:()=>n
  const cookie=(token:string,maxAge=1800)=>`${COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/api; Max-Age=${maxAge}`;
  const signIn=(id:string,password:string)=>{
    if(typeof id!=='string'||!['coordinator','reviewer'].includes(id)||typeof password!=='string'||password.length>256)return null;
-   const lock=attempts.get(id);
-   if(lock&&lock.count>=8&&now()<lock.until)return null;
+   // Failures are counted per account name, not per client: any local process that can
+   // reach the loopback port can lock an account for LOCK_MS. The count resets on expiry.
+   let lock=attempts.get(id);
+   if(lock&&now()>=lock.until){attempts.delete(id);lock=undefined;}
+   if(lock&&lock.count>=LOCK_AFTER)return null;
    const account=accounts.find(account=>account.actor.id===id);
    // Derive a hash even for unknown users to avoid an instant negative response.
    const candidate=digest(password,account?.salt||Buffer.alloc(16));
    if(!account||!safeEqual(candidate,account.hash)){
-     const previous=lock&&now()<lock.until?lock.count:0;
-     attempts.set(id,{count:previous+1,until:now()+5*60*1000});
+     attempts.set(id,{count:(lock?.count||0)+1,until:now()+LOCK_MS});
      return null;
    }
    attempts.delete(id);
+   for(const [key,session] of sessions)if(session.expiresAt<=now())sessions.delete(key);
    const token=randomBytes(32).toString('hex'),csrf=randomBytes(32).toString('hex');
    sessions.set(sha256(token),{actor:account.actor,csrf,expiresAt:now()+TTL_MS});
    return {setCookie:cookie(token),actor:account.actor,csrfToken:csrf};
@@ -66,6 +70,6 @@ export function createDemoSessions(env:Record<string,string|undefined>,now:()=>n
    if(token)sessions.delete(sha256(token));
  };
  const validCsrf=(session:Session,value:unknown)=>typeof value==='string'&&/^[a-f0-9]{64}$/.test(value)&&safeEqual(Buffer.from(session.csrf,'hex'),Buffer.from(value,'hex'));
- return {signIn,get,revoke,validCsrf,cookie,publicAccounts,generated:display,
+ return {signIn,get,revoke,validCsrf,cookie,publicAccounts,generated:display,sessionCount:()=>sessions.size,
    bootstrapSecrets:{coordinator:coordinator.secret,reviewer:reviewer.secret}};
 }
