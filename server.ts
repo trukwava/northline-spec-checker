@@ -44,7 +44,7 @@ if(req.method==='POST'){
 }
 const p=req.method==='POST'?await readJson():{};
 if(req.method==='GET'&&url.pathname==='/api/jobs'){res.end(JSON.stringify((db.prepare('SELECT body FROM jobs WHERE org=?').all(org) as any[]).map(r=>state(JSON.parse(r.body)))));return;}
-if(req.method==='POST'&&url.pathname==='/api/reset'){if(actor.role!=='reviewer')throw Object.assign(new Error('Only the local reviewer key may reset the demonstration'),{status:403,code:'FORBIDDEN'});db.prepare('DELETE FROM jobs WHERE org=?').run(org);seed();audit('demo reset by '+actor.label,'all');res.end('{}');return;}
+if(req.method==='POST'&&url.pathname==='/api/reset'){if(actor.role!=='reviewer')throw Object.assign(new Error('Only the demo reviewer account may reset the demonstration'),{status:403,code:'FORBIDDEN'});db.prepare('DELETE FROM jobs WHERE org=?').run(org);seed();audit('demo reset by '+actor.label,'all');res.end('{}');return;}
 if(req.method==='POST'&&url.pathname==='/api/jobs'){if(!['Sleeve','Label','Carton'].includes(p.type)||!p.name?.trim())throw Error('Enter a name and valid product type');const j={id:'NL-'+crypto.randomUUID().slice(0,8),name:String(p.name).slice(0,120),type:p.type,schemaVersion:'1.0',messages:[],candidates:[],resolutions:{},revisions:[]};save(j);audit('created by '+actor.label,j.id);res.end(JSON.stringify(state(j)));return;}
 const id=url.pathname.split('/')[3];const j=get(id);
 const verifyRoute=url.pathname.match(/^\/api\/jobs\/[^/]+\/releases\/(\d+)\/verify$/);
@@ -80,7 +80,7 @@ if(j.candidateReviews[c.id]){delete j.candidateReviews[c.id];j.candidateReviewEv
 }else throw Error('Unknown candidate review decision');
 }
 else if(action==='approve'){
-if(actor.role!=='reviewer')throw Object.assign(new Error('Only the local reviewer key may approve a revision'),{status:403,code:'FORBIDDEN'});
+if(actor.role!=='reviewer')throw Object.assign(new Error('Only the demo reviewer account may approve a revision'),{status:403,code:'FORBIDDEN'});
 const previous=j.revisions.at(-1);
 if(!previous||!isDeepStrictEqual(previous.spec,j.resolutions)||!isDeepStrictEqual(previous.sourceIds,j.messages.map((m:any)=>m.id))||!isDeepStrictEqual(previous.candidateReviewSnapshot||{},j.candidateReviews||{})){
 const revision=approve(j,actor.role);revision.approvedBy=actor.label;revision.approvedByActorId=actor.id;sealRelease(j,revision);signer.signRelease(org,j,revision);j.revisions.push(revision);events.push('approved revision '+j.revisions.length);

@@ -22,7 +22,7 @@ No environment variables are required. To provide your own demo account password
 4. Confirm a source value or enter a reviewed value with a reason. Manual dimensions require mm. Clear decision reopens a field. You can also reject a direct assertion with a recorded reason; rejected claims stay source-linked and can be restored. If the rejected claim had been selected, the field reopens.
 5. Open Clarification draft for field-mapped questions. Its editable text is temporary and is never sent or saved automatically.
 6. Once blockers are resolved, sign in using the reviewer demo account and approve explicitly from the ledger. The server enforces the role attached to the session, ignores forged `role` fields in request bodies, and records the synthetic demo actor ID; this still does not verify a real human identity.
-7. Approved revisions offers JSON, CSV, and an HTML production sheet you can print or save as PDF through the browser.
+7. Approved revisions offers JSON, CSV, an evidence packet and an HTML production sheet you can print or save as PDF through the browser. The plain JSON export contains only the stored approved revision; the server-computed verification status shown in the archive is left out, as in the evidence packet.
 8. Import a different quantity after approval. The draft reopens and the previous release stays unchanged. Confirm and approve a new revision to adopt the change.
 9. Open the Contrast Room to inspect active disagreements, rejected evidence and changes against the last approved revision.
 10. Open **Activity ledger** for the most recent 100 local actions on this case. Every action is labeled by its synthetic account identifier rather than by a verified person; this is not a tamper-evident or compliance-certified audit trail. In another browser session, an outdated decision is blocked with a stale-case warning rather than overwriting newer review work.
@@ -67,7 +67,7 @@ Only bootstrap passwords generated at startup are shown to the local terminal. E
 
 ## Access validation and activity ledger
 
-Configured local keys must contain 32–256 printable ASCII characters without spaces. Keep them outside the repository. A new per-case **Activity ledger** reads up to 100 recent event metadata entries through an authenticated API route. This improves operator visibility but does not make the audit database tamper-proof or identify individual humans. This ledger is intentionally distinct from the immutable approved production snapshots and the per-candidate adjudication history.
+Configured demo account passwords must contain 32–256 printable ASCII characters without spaces. Keep them outside the repository. A new per-case **Activity ledger** reads up to 100 recent event metadata entries through an authenticated API route. This improves operator visibility but does not make the audit database tamper-proof or identify individual humans. This ledger is intentionally distinct from the immutable approved production snapshots and the per-candidate adjudication history.
 
 ## Release integrity receipts
 
