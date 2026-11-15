@@ -9,7 +9,8 @@ permissions:
   contents: read
 concurrency:
   group: northline-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # Superseded pull-request runs are cancelled; a run on main always completes.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   verify:
     runs-on: ubuntu-24.04
