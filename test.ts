@@ -197,7 +197,8 @@ test('portable signed bundle requires externally pinned trust for validated iden
  assert.equal(verifyBundle(bundle,{trustedPublicKeyPem:signer.publicKeyPem}).attestation.status,'trusted');
  assert.equal(verifyBundle(bundle,{trustedPublicKeyPem:other.publicKeyPem}).attestation.status,'untrusted');
  bundle.case.id='NL-FORGED';
- assert.equal(verifyBundle(bundle).attestation.status,'invalid');
+ assert.equal(verifyBundle(bundle).status,'mismatch','The v2 receipt covers the case ID');
+ assert.equal(verifyAttestation('northline-demo',{id:'NL-FORGED'},r).status,'invalid','The signature also binds the case ID');
  bundle.case.id='NL-BUNDLE';bundle.sources[0].text='Artwork revision 4';
  assert.equal(verifyBundle(bundle).status,'mismatch');
 });
@@ -242,5 +243,69 @@ test('offline verifier --receipt-only still rejects a present but invalid or mis
   assert.match(claimsOnly.stdout,/SIGNATURE REJECTED: Signed claims disagree/);
   const keyId=structuredClone(original);keyId.revision.attestation.keyId='0'.repeat(64);
   assert.equal(run(keyId,'--receipt-only').status,1);
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});
+test('v2 receipts cover case label and source metadata, so a relabelled signed packet fails',()=>{
+ const signer=createAttestationSigner({});
+ const j=job();j.id='NL-META';j.name='Botanical launch sleeves';
+ j.messages=[{id:'a',name:'Customer proof',kind:'email',receivedAt:'2026-10-20T00:00:00.000Z',text:'quantity: 500'}];
+ const r=approve(j,'reviewer');r.approvedBy='Demo reviewer account';r.approvedByActorId='reviewer';
+ sealRelease(j,r);signer.signRelease('northline-demo',j,r);
+ assert.equal(r.receipt.version,'northline-receipt-v2');
+ const original=buildReleaseBundle(j,r),trusted={trustedPublicKeyPem:signer.publicKeyPem};
+ assert.equal(verifyBundle(original,trusted).attestation.status,'trusted');
+ const edits:Record<string,(b:any)=>void>={
+  'case name':b=>{b.case.name='Forged sleeves';},'case type':b=>{b.case.type='Carton';},
+  'source name':b=>{b.sources[0].name='forged.eml';},'source kind':b=>{b.sources[0].kind='PDF';},
+  'source receivedAt':b=>{b.sources[0].receivedAt='1999-01-01T00:00:00.000Z';},
+  'source receivedAt removed':b=>{b.sources[0].receivedAt=null;},'case name retyped':b=>{b.case.name=0;}
+ };
+ for(const [field,edit] of Object.entries(edits)){
+  const bundle=structuredClone(original);edit(bundle);
+  const result=verifyBundle(bundle,trusted);
+  assert.equal(result.status,'mismatch',field);
+  assert.notEqual(result.attestation.status,'trusted',field);
+ }
+ for(const edit of [()=>{j.name='Renamed';},()=>{j.type='Carton';},()=>{j.messages[0].kind='PDF';}]){
+  const saved=structuredClone(j);edit();
+  assert.equal(verifyRelease(j,r).status,'mismatch');
+  Object.assign(j,saved);
+ }
+ assert.equal(verifyRelease(j,r).status,'verified');
+ const dir=mkdtempSync(join(tmpdir(),'northline-meta-')),file=join(dir,'bundle.json'),pem=join(dir,'pinned.pem');
+ try{
+  const bundle=structuredClone(original);bundle.case.name='Forged sleeves';bundle.sources[0].receivedAt='1999-01-01T00:00:00.000Z';
+  writeFileSync(file,JSON.stringify(bundle));writeFileSync(pem,signer.publicKeyPem);
+  const cli=spawnSync(process.execPath,['--experimental-strip-types','scripts/verify-bundle.ts',file,'--trusted-public-key',pem],{encoding:'utf8',timeout:15000});
+  assert.equal(cli.status,1,cli.stderr);
+  assert.match(cli.stdout,/MISMATCH:/);
+  assert.doesNotMatch(cli.stdout,/TRUSTED SIGNATURE VERIFIED/);
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});
+test('older v1 receipts verify exactly as before and the verifier flags their uncovered fields',()=>{
+ const j:any={id:'NL-V1',name:'Frozen v1 case',type:'Label',messages:[{id:'v1-source',name:'Proof',kind:'email',receivedAt:'2026-10-20T00:00:00.000Z',text:'quantity: 500'}]};
+ // Receipt frozen from the original northline-receipt-v1 sealRelease for this exact release.
+ const r:any={id:'00000000-0000-4000-8000-000000000001',number:1,approvedAt:'2026-10-21T00:00:00.000Z',approvedBy:'Demo reviewer account',approvedByActorId:'reviewer',
+  schemaVersion:'1.0',spec:{quantity:{value:500,unit:null,basis:'manual'}},candidateReviewSnapshot:{},sourceIds:['v1-source'],
+  receipt:{version:'northline-receipt-v1',algorithm:'SHA-256',sha256:'984c6a28c09f5438d4864e39e8f36542ab8e1cf5704c7c8b474342aa3dbb8de9',
+   sourceHashes:[{id:'v1-source',sha256:'46e2bd1326fc81e9e6c361118dbfdcd9b3a218355ccc1c7c1f0f96b3c3f19a6b'}]}};
+ const result=verifyRelease(j,r);
+ assert.equal(result.status,'verified');
+ assert.equal(result.version,'northline-receipt-v1');
+ assert.equal(result.sha256,r.receipt.sha256);
+ assert.equal(verifyRelease(j,{...r,receipt:{...r.receipt,version:'northline-receipt-v2'}}).status,'mismatch','A v1 digest is not a v2 digest');
+ const dir=mkdtempSync(join(tmpdir(),'northline-v1-')),file=join(dir,'bundle.json');
+ try{
+  const bundle=buildReleaseBundle(j,r);
+  bundle.case.name='Renamed';bundle.case.type='Carton';
+  Object.assign(bundle.sources[0],{name:'Other',kind:'PDF',receivedAt:'1999-01-01T00:00:00.000Z'});
+  assert.equal(verifyBundle(bundle).status,'verified','v1 never covered metadata and its behavior is unchanged');
+  writeFileSync(file,JSON.stringify(bundle));
+  const cli=spawnSync(process.execPath,['--experimental-strip-types','scripts/verify-bundle.ts',file,'--receipt-only'],{encoding:'utf8',timeout:15000});
+  assert.equal(cli.status,0,cli.stderr);
+  assert.match(cli.stdout,/SHA-256 RECEIPT VERIFIED: 984c6a28/);
+  assert.match(cli.stdout,/NOT COVERED BY v1 RECEIPT: case name and type, and each source name, kind and receivedAt/);
+  bundle.sources[0].text='quantity: 900';
+  assert.equal(verifyBundle(bundle).status,'mismatch');
  }finally{rmSync(dir,{recursive:true,force:true});}
 });

@@ -15,7 +15,8 @@ export function verifyBundle(bundle:any,options:{trustedPublicKeyPem?:string}={}
   return {status:'mismatch',message:'Source list differs from the approved source manifest'};
  if(bundle.sources.some((source:any)=>typeof source?.text!=='string'))
   return {status:'mismatch',message:'A source is missing its preserved text'};
- const receipt=verifyRelease({messages:bundle.sources},bundle.revision);
+ const {id,name,type}=bundle.case;
+ const receipt=verifyRelease({id,name,type,messages:bundle.sources},bundle.revision);
  if(receipt.status!=='verified')return {...receipt,attestation:{status:'unchecked',message:'Receipt verification unsuccessful'}};
  return {...receipt,attestation:verifyAttestation('northline-demo',{id:bundle.case.id},bundle.revision,options.trustedPublicKeyPem)};
 }
@@ -40,6 +41,8 @@ if(invoked){
     process.exitCode=result.status==='legacy'?2:1;
    }else{
     console.log('SHA-256 RECEIPT VERIFIED: '+result.sha256);
+    if(result.version==='northline-receipt-v1')
+     console.log('NOT COVERED BY v1 RECEIPT: case name and type, and each source name, kind and receivedAt. Treat those packet fields as unverified.');
     const att=result.attestation;
     // --receipt-only skips signer trust only; a present but invalid signature still fails.
     if(att.status==='invalid'){

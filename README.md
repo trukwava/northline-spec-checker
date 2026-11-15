@@ -71,7 +71,7 @@ New synthetic approvals now include a reproducible SHA-256 fingerprint covering 
 
 ### Portable release evidence
 
-Use **Evidence packet** from the release archive to download approved fields, the stored SHA-256 receipt, and the exact referenced source texts. Independently check the packet with `node --experimental-strip-types scripts/verify-bundle.ts path/to/file.bundle` (exit 0 verified, 1 mismatch, 2 legacy). The receipt does **not** cover the packet's outer case label and is not a cryptographic signature or independent proof of authenticity.
+Use **Evidence packet** from the release archive to download approved fields, the stored SHA-256 receipt, and the exact referenced source texts. Independently check the packet with `node --experimental-strip-types scripts/verify-bundle.ts path/to/file.bundle` (exit 0 verified, 1 mismatch, 2 legacy). New (`northline-receipt-v2`) receipts also cover the case ID, name and type and each source's name, kind and `receivedAt`. Older v1 receipts do not, and the verifier prints which fields they leave uncovered. The receipt alone is not a cryptographic signature or independent proof of authenticity.
 
 
 ## Signed approvals and external trust
