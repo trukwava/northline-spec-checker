@@ -41,7 +41,11 @@ if(invoked){
    }else{
     console.log('SHA-256 RECEIPT VERIFIED: '+result.sha256);
     const att=result.attestation;
-    if(receiptOnly)console.log('RECEIPT ONLY: signer identity and signature trust not checked.');
+    // --receipt-only skips signer trust only; a present but invalid signature still fails.
+    if(att.status==='invalid'){
+     console.log('SIGNATURE REJECTED: '+att.message);
+     process.exitCode=1;
+    }else if(receiptOnly)console.log('RECEIPT ONLY: '+(att.status==='unsigned'?'no signature present':'embedded signature is mathematically valid')+'; signer identity and trust not checked.');
     else if(att.status==='trusted')console.log('TRUSTED SIGNATURE VERIFIED: Ed25519 key '+att.keyId);
     else if(att.status==='valid-untrusted'){
      console.log('SIGNATURE VALID BUT UNTRUSTED: '+att.message);

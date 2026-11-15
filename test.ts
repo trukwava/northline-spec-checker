@@ -219,3 +219,28 @@ test('standalone verifier checks externally pinned Ed25519 key, not embedded key
   assert.equal(run('--receipt-only').status,0);
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
+test('offline verifier --receipt-only still rejects a present but invalid or mismatched signature',()=>{
+ const signer=createAttestationSigner({});
+ const j=job();j.id='NL-CLI-RO';j.name='Receipt-only proof';j.messages=[{id:'a',name:'Proof',kind:'email',receivedAt:'2026-10-20T00:00:00.000Z',text:'quantity: 500'}];
+ const r=approve(j,'reviewer');r.approvedBy='Demo reviewer account';r.approvedByActorId='reviewer';
+ sealRelease(j,r);signer.signRelease('northline-demo',j,r);
+ const original=buildReleaseBundle(j,r);
+ const dir=mkdtempSync(join(tmpdir(),'northline-receipt-only-')),file=join(dir,'bundle.json');
+ const run=(bundle:any,...args:string[])=>{writeFileSync(file,JSON.stringify(bundle));return spawnSync(process.execPath,['--experimental-strip-types','scripts/verify-bundle.ts',file,...args],{encoding:'utf8',timeout:15000});};
+ try{
+  const good=run(original,'--receipt-only');
+  assert.equal(good.status,0,good.stderr);
+  assert.match(good.stdout,/RECEIPT ONLY: embedded signature is mathematically valid/);
+  const zeroed=structuredClone(original);zeroed.revision.attestation.signature=Buffer.alloc(64).toString('base64');
+  assert.equal(run(zeroed).status,1);
+  const zeroedOnly=run(zeroed,'--receipt-only');
+  assert.equal(zeroedOnly.status,1,zeroedOnly.stderr);
+  assert.match(zeroedOnly.stdout,/SIGNATURE REJECTED: Invalid Ed25519 signature/);
+  const claims=structuredClone(original);claims.revision.attestation.claims.approvedBy='Someone else';
+  const claimsOnly=run(claims,'--receipt-only');
+  assert.equal(claimsOnly.status,1,claimsOnly.stderr);
+  assert.match(claimsOnly.stdout,/SIGNATURE REJECTED: Signed claims disagree/);
+  const keyId=structuredClone(original);keyId.revision.attestation.keyId='0'.repeat(64);
+  assert.equal(run(keyId,'--receipt-only').status,1);
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});

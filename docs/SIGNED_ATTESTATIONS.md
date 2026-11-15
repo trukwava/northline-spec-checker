@@ -31,7 +31,7 @@ node --experimental-strip-types scripts/verify-bundle.ts evidence.json --trusted
 - Exit **2**: historical unsigned approval or no SHA-256 receipt
 - Exit **3**: internally valid signature with no independently pinned trusted key supplied
 
-The explicit `--receipt-only` flag reproduces the older checksum-only check (exit 0 when it matches), without any identity assurance. Existing unsigned releases do not acquire retroactive signatures.
+The explicit `--receipt-only` flag skips only the question of signer **trust**. It exits 0 when the checksum matches and the release is either unsigned or carries a mathematically valid signature, without any identity assurance. A signature that is present but invalid, or whose claims, key fingerprint or receipt digest do not match the release, still fails with exit 1. Existing unsigned releases do not acquire retroactive signatures.
 
 ## Boundary
 
